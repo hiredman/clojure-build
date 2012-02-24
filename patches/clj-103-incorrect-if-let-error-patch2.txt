@@ -1,0 +1,26 @@
+From d9d6dff6b5ca7f34bbcd00d34263470a498ad7a9 Mon Sep 17 00:00:00 2001
+From: John Szakmeister <john@szakmeister.net>
+Date: Wed, 27 Oct 2010 21:36:30 -0400
+Subject: [PATCH] Fix CLJ-103: Incorrect error with if-let.
+
+---
+ src/clj/clojure/core.clj |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 1dc12c3..1b9d81f 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -1675,7 +1675,8 @@
+    `(if-let ~bindings ~then nil))
+   ([bindings then else & oldform]
+    (assert-args
+-     (and (vector? bindings) (nil? oldform)) "a vector for its binding"
++     (vector? bindings) "a vector for its binding"
++     (nil? oldform) "1 or 2 forms to be passed"
+      (= 2 (count bindings)) "exactly 2 forms in binding vector")
+    (let [form (bindings 0) tst (bindings 1)]
+      `(let [temp# ~tst]
+-- 
+1.7.3.4
+
