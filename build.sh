@@ -16,7 +16,7 @@ for i in `ls ../patches`; do
     [ ! 0 -eq $? ] && echo "$i failed to apply"
 done
 
-mvn test > ../build.log
+mvn package > ../build.log
 
 if [ ! 0 -eq $? ]; then
     echo "build failed, see build.log"
