@@ -1,0 +1,88 @@
+From 6ab721a455fe1122aff5676ce436f322644c3a0a Mon Sep 17 00:00:00 2001
+From: Stefan Kamphausen <ska2342@googlemail.com>
+Date: Fri, 9 Sep 2011 10:43:58 +0200
+Subject: [PATCH] remove msecs from Ref.TVal
+
+---
+ src/jvm/clojure/lang/LockingTransaction.java |    6 ++----
+ src/jvm/clojure/lang/Ref.java                |    9 +++------
+ 2 files changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/LockingTransaction.java b/src/jvm/clojure/lang/LockingTransaction.java
+index 44d2de6..c97c51e 100644
+--- a/src/jvm/clojure/lang/LockingTransaction.java
++++ b/src/jvm/clojure/lang/LockingTransaction.java
+@@ -305,7 +305,6 @@ Object run(Callable fn) throws Exception{
+ 
+ 				//at this point, all values calced, all refs to be written locked
+ 				//no more client code to be called
+-				long msecs = System.currentTimeMillis();
+ 				long commitPoint = getCommitPoint();
+ 				for(Map.Entry<Ref, Object> e : vals.entrySet())
+ 					{
+@@ -316,12 +315,12 @@ Object run(Callable fn) throws Exception{
+ 
+ 					if(ref.tvals == null)
+ 						{
+-						ref.tvals = new Ref.TVal(newval, commitPoint, msecs);
++						ref.tvals = new Ref.TVal(newval, commitPoint);
+ 						}
+ 					else if((ref.faults.get() > 0 && hcount < ref.maxHistory)
+ 							|| hcount < ref.minHistory)
+ 						{
+-						ref.tvals = new Ref.TVal(newval, commitPoint, msecs, ref.tvals);
++						ref.tvals = new Ref.TVal(newval, commitPoint, ref.tvals);
+ 						ref.faults.set(0);
+ 						}
+ 					else
+@@ -329,7 +328,6 @@ Object run(Callable fn) throws Exception{
+ 						ref.tvals = ref.tvals.next;
+ 						ref.tvals.val = newval;
+ 						ref.tvals.point = commitPoint;
+-						ref.tvals.msecs = msecs;
+ 						}
+ 					if(ref.getWatches().count() > 0)
+ 						notify.add(new Notify(ref, oldval, newval));
+diff --git a/src/jvm/clojure/lang/Ref.java b/src/jvm/clojure/lang/Ref.java
+index 9206785..59eebc1 100644
+--- a/src/jvm/clojure/lang/Ref.java
++++ b/src/jvm/clojure/lang/Ref.java
+@@ -47,24 +47,21 @@ public Ref setMaxHistory(int maxHistory){
+ public static class TVal{
+ 	Object val;
+ 	long point;
+-	long msecs;
+ 	TVal prior;
+ 	TVal next;
+ 
+-	TVal(Object val, long point, long msecs, TVal prior){
++	TVal(Object val, long point, TVal prior){
+ 		this.val = val;
+ 		this.point = point;
+-		this.msecs = msecs;
+ 		this.prior = prior;
+ 		this.next = prior.next;
+ 		this.prior.next = this;
+ 		this.next.prior = this;
+ 	}
+ 
+-	TVal(Object val, long point, long msecs){
++	TVal(Object val, long point){
+ 		this.val = val;
+ 		this.point = point;
+-		this.msecs = msecs;
+ 		this.next = this;
+ 		this.prior = this;
+ 	}
+@@ -92,7 +89,7 @@ public Ref(Object initVal,IPersistentMap meta) {
+     this.id = ids.getAndIncrement();
+ 	this.faults = new AtomicInteger();
+ 	this.lock = new ReentrantReadWriteLock();
+-	tvals = new TVal(initVal, 0, System.currentTimeMillis());
++	tvals = new TVal(initVal, 0);
+ }
+ 
+ //the latest val
+-- 
+1.7.0.4
+
