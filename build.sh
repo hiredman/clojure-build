@@ -20,6 +20,8 @@ for i in `ls ../patches`; do
     [ ! 0 -eq $? ] && echo "$i failed to apply"
 done
 
+MAVEN_OPTS="-Djava.awt.headless=true"
+
 mvn package > ../build.log
 
 if [ ! 0 -eq $? ]; then
