@@ -1,0 +1,49 @@
+From c99d87b033ae585d32ede62f3089f7675b6bc71b Mon Sep 17 00:00:00 2001
+From: Alan Malloy <alan@malloys.org>
+Date: Wed, 26 Oct 2011 12:22:50 -0700
+Subject: [PATCH 2/2] Preserve &form metadata on macroexpanded forms
+
+---
+ src/jvm/clojure/lang/Compiler.java |   24 +++++++++++++++++++++++-
+ 1 files changed, 23 insertions(+), 1 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index a4485d7..3b19623 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -6346,9 +6346,31 @@ public static Object macroexpand1(Object x) {
+ 		Var v = isMacro(op);
+ 		if(v != null)
+ 			{
++				IPersistentMap preMeta = null;
++				if (form instanceof IMeta)
++					{
++						preMeta = ((IMeta)form).meta();
++					}
+ 				try
+ 					{
+-						return v.applyTo(RT.cons(form,RT.cons(LOCAL_ENV.get(),form.next())));
++						Object expansion = v.applyTo(RT.cons(form,RT.cons(LOCAL_ENV.get(),form.next())));
++						if (preMeta == null || !(expansion instanceof IObj))
++							{
++								return expansion;
++							}
++						IObj ret = (IObj)expansion;
++						IPersistentMap mergedMeta = ret.meta();
++						if (mergedMeta == null)
++							{
++								mergedMeta = PersistentArrayMap.EMPTY;
++							}
++						ISeq pairs = preMeta.without(RT.LINE_KEY).without(RT.FILE_KEY).seq();
++						while (pairs != null)
++							{
++								mergedMeta = (IPersistentMap)mergedMeta.cons(pairs.first());
++								pairs = pairs.next();
++							}
++						return ret.withMeta(mergedMeta);
+ 					}
+ 				catch(ArityException e)
+ 					{
+-- 
+1.7.4.1
+
