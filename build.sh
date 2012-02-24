@@ -26,4 +26,9 @@ mvn package > ../build.log
 
 if [ ! 0 -eq $? ]; then
     echo "build failed, see build.log"
+else
+    TAG=`date +%Y-%m-%d'T'%H%M%z`
+    cd ..
+    echo $TAG
+    git tag -am $TAG $TAG
 fi
