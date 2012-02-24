@@ -10,6 +10,10 @@ git fetch origin
 
 git reset --hard $CLOJURE_SHA
 
+for i in `git status --porcelain|cut -d \  -f 2`; do rm -rf $i; done
+
+git reset --hard $CLOJURE_SHA
+
 for i in `ls ../patches`; do
     echo "applying" $i
     patch --strip 1 < ../patches/$i > /dev/null
