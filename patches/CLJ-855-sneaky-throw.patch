@@ -1,0 +1,773 @@
+From 4669bf98656947e421c9662f3e915ae6fdad8224 Mon Sep 17 00:00:00 2001
+From: Paul M Bauer <paul.michael.bauer@gmail.com>
+Date: Tue, 11 Oct 2011 18:29:58 -0700
+Subject: [PATCH 1/4] Added regression test for catching checked exceptions.
+
+---
+ src/script/run_tests.clj                |    1 +
+ test/clojure/test_clojure/try_catch.clj |   24 ++++++++++++++++++++++++
+ 2 files changed, 25 insertions(+), 0 deletions(-)
+ mode change 100644 => 100755 src/script/run_tests.clj
+ create mode 100755 test/clojure/test_clojure/try_catch.clj
+
+diff --git a/src/script/run_tests.clj b/src/script/run_tests.clj
+old mode 100644
+new mode 100755
+index 6720abd..1aa8b99
+--- a/src/script/run_tests.clj
++++ b/src/script/run_tests.clj
+@@ -50,6 +50,7 @@ clojure.test-clojure.string
+ clojure.test-clojure.test
+ clojure.test-clojure.test-fixtures
+ clojure.test-clojure.transients
++clojure.test-clojure.try-catch
+ clojure.test-clojure.vars
+ clojure.test-clojure.vectors
+ ])
+diff --git a/test/clojure/test_clojure/try_catch.clj b/test/clojure/test_clojure/try_catch.clj
+new file mode 100755
+index 0000000..e53eb0b
+--- /dev/null
++++ b/test/clojure/test_clojure/try_catch.clj
+@@ -0,0 +1,24 @@
++;   Copyright (c) Rich Hickey. All rights reserved.
++;   The use and distribution terms for this software are covered by the
++;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
++;   which can be found in the file epl-v10.html at the root of this distribution.
++;   By using this software in any fashion, you are agreeing to be bound by
++;   the terms of this license.
++;   You must not remove this notice, or any other, from this software.
++
++; Author: Paul M Bauer 
++
++(ns clojure.test-clojure.try-catch
++  (:use clojure.test))
++
++(defn- get-exception [expression]
++  (try (eval expression)
++    nil
++    (catch java.lang.Throwable t
++      t)))
++
++(deftest catch-receives-checked-exception
++  (are [expression expected-exception] (= expected-exception
++                                          (type (get-exception expression)))
++    "Eh, I'm pretty safe" nil
++    '(java.io.FileReader. "CAFEBABEx0/idonotexist") java.io.FileNotFoundException))
+-- 
+1.7.6.1
+
+
+From 0e917344dd7529a7519afe0dd988818fe9b19728 Mon Sep 17 00:00:00 2001
+From: Ben Smith-Mannschott <bsmith.occs@gmail.com>
+Date: Thu, 13 Oct 2011 21:01:55 +0200
+Subject: [PATCH 2/4] CLJ-855: add test that goes through Reflector
+
+(The existing test produces the same wrapped exception symptom,
+but does so by going through eval.)
+---
+ src/jvm/clojure/test/ReflectorTryCatchFixture.java |   17 +++++++++++++++++
+ test/clojure/test_clojure/try_catch.clj            |   15 +++++++++++++--
+ 2 files changed, 30 insertions(+), 2 deletions(-)
+ create mode 100644 src/jvm/clojure/test/ReflectorTryCatchFixture.java
+
+diff --git a/src/jvm/clojure/test/ReflectorTryCatchFixture.java b/src/jvm/clojure/test/ReflectorTryCatchFixture.java
+new file mode 100644
+index 0000000..9256559
+--- /dev/null
++++ b/src/jvm/clojure/test/ReflectorTryCatchFixture.java
+@@ -0,0 +1,17 @@
++package clojure.test;
++
++public class ReflectorTryCatchFixture {
++
++	public static void fail(Long x) throws Cookies {
++		throw new Cookies("Long");
++	}
++	
++	public static void fail(Double y) throws Cookies {
++		throw new Cookies("Double");
++	}
++	
++	public static class Cookies extends Exception {
++		public Cookies(String msg) { super(msg); }
++	}
++
++}
+diff --git a/test/clojure/test_clojure/try_catch.clj b/test/clojure/test_clojure/try_catch.clj
+index e53eb0b..328495a 100755
+--- a/test/clojure/test_clojure/try_catch.clj
++++ b/test/clojure/test_clojure/try_catch.clj
+@@ -9,7 +9,9 @@
+ ; Author: Paul M Bauer 
+ 
+ (ns clojure.test-clojure.try-catch
+-  (:use clojure.test))
++  (:use clojure.test)
++  (:import [clojure.test ReflectorTryCatchFixture 
++                         ReflectorTryCatchFixture$Cookies]))
+ 
+ (defn- get-exception [expression]
+   (try (eval expression)
+@@ -17,8 +19,17 @@
+     (catch java.lang.Throwable t
+       t)))
+ 
+-(deftest catch-receives-checked-exception
++(deftest catch-receives-checked-exception-from-eval
+   (are [expression expected-exception] (= expected-exception
+                                           (type (get-exception expression)))
+     "Eh, I'm pretty safe" nil
+     '(java.io.FileReader. "CAFEBABEx0/idonotexist") java.io.FileNotFoundException))
++
++
++(defn fail [x]
++  (ReflectorTryCatchFixture/fail x))
++
++(deftest catch-receives-checked-exception-from-reflective-call
++  (is (thrown-with-msg? ReflectorTryCatchFixture$Cookies #"Long" (fail 1)))
++  (is (thrown-with-msg? ReflectorTryCatchFixture$Cookies #"Double" (fail 1.0))))
++    
+-- 
+1.7.6.1
+
+
+From 230834a8f46f5f2a76852ccede7e03bcabe12a97 Mon Sep 17 00:00:00 2001
+From: Ben Smith-Mannschott <bsmith.occs@gmail.com>
+Date: Fri, 14 Oct 2011 20:05:29 +0200
+Subject: [PATCH 3/4] CLJ-855: Util.sneakyThrow() throws any exception without
+ being required to declare or catch it
+
+---
+ src/jvm/clojure/lang/Util.java |   20 ++++++++++++++++++++
+ 1 files changed, 20 insertions(+), 0 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Util.java b/src/jvm/clojure/lang/Util.java
+index 1fc0439..d751e82 100644
+--- a/src/jvm/clojure/lang/Util.java
++++ b/src/jvm/clojure/lang/Util.java
+@@ -169,4 +169,24 @@ static public RuntimeException runtimeException(Throwable e){
+ 	return new RuntimeException(e);
+ }
+ 
++/**
++ * Throw even checked exceptions without being required
++ * to declare them or catch them. Suggested idiom:
++ * <p>
++ * <code>throw sneakyThrow( some exception );</code>
++ */
++static public RuntimeException sneakyThrow(Throwable t) {
++    // http://www.mail-archive.com/javaposse@googlegroups.com/msg05984.html
++	if (t == null)
++		throw new NullPointerException();
++	Util.<RuntimeException>sneakyThrow0(t);
++	return null;
++}
++
++@SuppressWarnings("unchecked")
++static private <T extends Throwable> void sneakyThrow0(Throwable t) throws T {
++	throw (T) t;
+ }
++
++}
++
+-- 
+1.7.6.1
+
+
+From 89c6756b6a5cb5cb99b61b31783a6e3cd5589c81 Mon Sep 17 00:00:00 2001
+From: Ben Smith-Mannschott <bsmith.occs@gmail.com>
+Date: Fri, 14 Oct 2011 20:18:45 +0200
+Subject: [PATCH 4/4] CLJ-855: throw exceptions directly instead of wrapping
+ them with RTE
+
+---
+ src/jvm/clojure/lang/AFn.java                  |    2 +-
+ src/jvm/clojure/lang/AFunction.java            |    2 +-
+ src/jvm/clojure/lang/AMapEntry.java            |    2 +-
+ src/jvm/clojure/lang/ARef.java                 |    6 +-
+ src/jvm/clojure/lang/Compiler.java             |   32 ++++++++--------
+ src/jvm/clojure/lang/FnLoaderThunk.java        |    2 +-
+ src/jvm/clojure/lang/LazySeq.java              |    2 +-
+ src/jvm/clojure/lang/LispReader.java           |    6 +-
+ src/jvm/clojure/lang/PersistentHashMap.java    |    2 +-
+ src/jvm/clojure/lang/RT.java                   |   10 ++--
+ src/jvm/clojure/lang/Ref.java                  |    2 +-
+ src/jvm/clojure/lang/Reflector.java            |   48 +++++++++++-------------
+ src/jvm/clojure/lang/TransactionalHashMap.java |    4 +-
+ src/jvm/clojure/lang/Util.java                 |    7 +---
+ src/jvm/clojure/lang/Var.java                  |   13 ++++--
+ 15 files changed, 67 insertions(+), 73 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/AFn.java b/src/jvm/clojure/lang/AFn.java
+index f2d530a..ca4d39d 100644
+--- a/src/jvm/clojure/lang/AFn.java
++++ b/src/jvm/clojure/lang/AFn.java
+@@ -25,7 +25,7 @@ public void run(){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+diff --git a/src/jvm/clojure/lang/AFunction.java b/src/jvm/clojure/lang/AFunction.java
+index d797102..2963d0e 100644
+--- a/src/jvm/clojure/lang/AFunction.java
++++ b/src/jvm/clojure/lang/AFunction.java
+@@ -60,7 +60,7 @@ public int compare(Object o1, Object o2){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ }
+diff --git a/src/jvm/clojure/lang/AMapEntry.java b/src/jvm/clojure/lang/AMapEntry.java
+index f9e0246..41ae756 100644
+--- a/src/jvm/clojure/lang/AMapEntry.java
++++ b/src/jvm/clojure/lang/AMapEntry.java
+@@ -78,7 +78,7 @@ public String toString(){
+ 	catch(Exception e)
+ 		{
+ 		//checked exceptions stink!
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ 	return sw.toString();
+ }
+diff --git a/src/jvm/clojure/lang/ARef.java b/src/jvm/clojure/lang/ARef.java
+index e9235c0..44dc2ad 100644
+--- a/src/jvm/clojure/lang/ARef.java
++++ b/src/jvm/clojure/lang/ARef.java
+@@ -53,7 +53,7 @@ public void setValidator(IFn vf){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ 	validator = vf;
+ }
+@@ -78,7 +78,7 @@ synchronized public IRef removeWatch(Object key){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ 
+ 	return this;
+@@ -99,7 +99,7 @@ public void notifyWatches(Object oldval, Object newval){
+ 				}
+ 			catch(Exception e1)
+ 				{
+-				throw Util.runtimeException(e1);
++				throw Util.sneakyThrow(e1);
+ 				}
+ 			}
+ 		}
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index 55e1268..1e2efdd 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -1136,7 +1136,7 @@ static class StaticFieldExpr extends FieldExpr implements AssignableExpr{
+ 			}
+ 		catch(NoSuchFieldException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		this.tag = tag;
+ 	}
+@@ -1209,7 +1209,7 @@ static Class maybePrimitiveType(Expr e){
+ 		}
+ 	catch(Exception ex)
+ 		{
+-		throw Util.runtimeException(ex);
++		throw Util.sneakyThrow(ex);
+ 		}
+ 	return null;
+ }
+@@ -2402,7 +2402,7 @@ public static class NewExpr implements Expr{
+ 				}
+ 			catch(Exception e)
+ 				{
+-				throw Util.runtimeException(e);
++				throw Util.sneakyThrow(e);
+ 				}
+ 			}
+ 		return Reflector.invokeConstructor(c, argvals);
+@@ -2560,7 +2560,7 @@ public static class IfExpr implements Expr, MaybePrimitiveExpr{
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		if(emitUnboxed)
+ 			((MaybePrimitiveExpr)thenExpr).emitUnboxed(context, objx, gen);
+@@ -3198,7 +3198,7 @@ static class StaticInvokeExpr implements Expr, MaybePrimitiveExpr{
+ 					}
+ 				catch(Exception ex)
+ 					{
+-					throw Util.runtimeException(ex);
++					throw Util.sneakyThrow(ex);
+ 					}
+ 				}
+ 			IPersistentVector restArgs = RT.subvec(args,paramclasses.length - 1,args.count());
+@@ -3720,7 +3720,7 @@ static public class FnExpr extends ObjExpr{
+ 			}
+ 		catch(IOException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		fn.getCompiledClass();
+ 
+@@ -4563,7 +4563,7 @@ static public class ObjExpr implements Expr{
+ 				}
+ 			catch(Exception e)
+ 				{
+-				throw Util.runtimeException(e);
++				throw Util.sneakyThrow(e);
+ 				}
+ 		return compiledClass;
+ 	}
+@@ -4577,7 +4577,7 @@ static public class ObjExpr implements Expr{
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 	}
+ 
+@@ -5077,7 +5077,7 @@ public static class FnMethod extends ObjMethod{
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		finally
+ 			{
+@@ -5141,7 +5141,7 @@ public static class FnMethod extends ObjMethod{
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		finally
+ 			{
+@@ -6082,7 +6082,7 @@ public static class RecurExpr implements Expr{
+ 					}
+ 				catch(Exception e)
+ 					{
+-					throw Util.runtimeException(e);
++					throw Util.sneakyThrow(e);
+ 					}
+ 				}
+ 			else
+@@ -6501,7 +6501,7 @@ public static Object eval(Object form, boolean freshLoader) {
+ 		catch(Throwable e)
+ 			{
+ 			if(!(e instanceof RuntimeException))
+-				throw Util.runtimeException(e);
++				throw Util.sneakyThrow(e);
+ 			throw (RuntimeException)e;
+ 			}
+ 		finally
+@@ -6607,7 +6607,7 @@ static void addAnnotation(Object visitor, IPersistentMap meta){
+ 	}
+ 	catch (Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+@@ -6618,7 +6618,7 @@ static void addParameterAnnotation(Object visitor, IPersistentMap meta, int i){
+ 	}
+ 	catch (Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+@@ -7348,7 +7348,7 @@ static public class NewInstanceExpr extends ObjExpr{
+ 			}
+ 		catch(IOException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		ret.getCompiledClass();
+ 		return ret;
+@@ -7858,7 +7858,7 @@ public static class NewInstanceMethod extends ObjMethod{
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		finally
+ 			{
+diff --git a/src/jvm/clojure/lang/FnLoaderThunk.java b/src/jvm/clojure/lang/FnLoaderThunk.java
+index 1c5f2b7..337ba25 100644
+--- a/src/jvm/clojure/lang/FnLoaderThunk.java
++++ b/src/jvm/clojure/lang/FnLoaderThunk.java
+@@ -55,7 +55,7 @@ private void load() {
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		v.root = fn;
+ 		}
+diff --git a/src/jvm/clojure/lang/LazySeq.java b/src/jvm/clojure/lang/LazySeq.java
+index 41e9dfe..4a40c5a 100644
+--- a/src/jvm/clojure/lang/LazySeq.java
++++ b/src/jvm/clojure/lang/LazySeq.java
+@@ -48,7 +48,7 @@ final synchronized Object sval(){
+ 			}
+ 		catch(Exception e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		}
+ 	if(sv != null)
+diff --git a/src/jvm/clojure/lang/LispReader.java b/src/jvm/clojure/lang/LispReader.java
+index dbb59a6..eb6d0b2 100644
+--- a/src/jvm/clojure/lang/LispReader.java
++++ b/src/jvm/clojure/lang/LispReader.java
+@@ -123,7 +123,7 @@ static void unread(PushbackReader r, int ch) {
+ 			}
+ 		catch(IOException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ }
+ 
+@@ -143,7 +143,7 @@ static public int read1(Reader r){
+ 		}
+ 	catch(IOException e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+@@ -209,7 +209,7 @@ static public Object read(PushbackReader r, boolean eofIsError, Object eofValue,
+ 	catch(Exception e)
+ 		{
+ 		if(isRecursive || !(r instanceof LineNumberingPushbackReader))
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 		LineNumberingPushbackReader rdr = (LineNumberingPushbackReader) r;
+ 		//throw Util.runtimeException(String.format("ReaderError:(%d,1) %s", rdr.getLineNumber(), e.getMessage()), e);
+ 		throw new ReaderException(rdr.getLineNumber(), e);
+diff --git a/src/jvm/clojure/lang/PersistentHashMap.java b/src/jvm/clojure/lang/PersistentHashMap.java
+index 18a7531..60a1926 100644
+--- a/src/jvm/clojure/lang/PersistentHashMap.java
++++ b/src/jvm/clojure/lang/PersistentHashMap.java
+@@ -1053,4 +1053,4 @@ static final class NodeSeq extends ASeq {
+ 	}
+ }
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/src/jvm/clojure/lang/RT.java b/src/jvm/clojure/lang/RT.java
+index 81ca178..c757656 100644
+--- a/src/jvm/clojure/lang/RT.java
++++ b/src/jvm/clojure/lang/RT.java
+@@ -306,7 +306,7 @@ static{
+ 				               }
+ 			               catch(IOException e)
+ 				               {
+-				               throw Util.runtimeException(e);
++				               throw Util.sneakyThrow(e);
+ 				               }
+ 		               }
+ 	               });
+@@ -316,7 +316,7 @@ static{
+ 		doInit();
+ 	}
+ 	catch(Exception e) {
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 	}
+ }
+ 
+@@ -1671,7 +1671,7 @@ static public String printString(Object x){
+ 		return sw.toString();
+ 	}
+ 	catch(Exception e) {
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 	}
+ }
+ 
+@@ -1681,7 +1681,7 @@ static public Object readString(String s){
+ 		return LispReader.read(r, true, null, false);
+ 	}
+ 	catch(Exception e) {
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 	}
+ }
+ 
+@@ -2014,7 +2014,7 @@ static public Class classForName(String name) {
+ 		}
+ 	catch(ClassNotFoundException e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+diff --git a/src/jvm/clojure/lang/Ref.java b/src/jvm/clojure/lang/Ref.java
+index 9206785..cf7ffa7 100644
+--- a/src/jvm/clojure/lang/Ref.java
++++ b/src/jvm/clojure/lang/Ref.java
+@@ -247,7 +247,7 @@ public void run(){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+diff --git a/src/jvm/clojure/lang/Reflector.java b/src/jvm/clojure/lang/Reflector.java
+index a57c32b..7164994 100644
+--- a/src/jvm/clojure/lang/Reflector.java
++++ b/src/jvm/clojure/lang/Reflector.java
+@@ -31,14 +31,22 @@ public static Object invokeInstanceMethod(Object target, String methodName, Obje
+ 		}
+ 	catch(Exception e)
+ 		{
+-		if(e.getCause() instanceof Exception)
+-			throw Util.runtimeException(e.getCause());
+-		else if(e.getCause() instanceof Error)
+-			throw (Error) e.getCause();
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(getCauseOrElse(e));
+ 		}
+ }
+ 
++private static Throwable getCauseOrElse(Exception e) {
++	if (e.getCause() != null)
++		return e.getCause();
++	return e;
++}
++
++private static RuntimeException throwCauseOrElseException(Exception e) {
++	if (e.getCause() != null)
++		throw Util.sneakyThrow(e.getCause());
++	throw Util.sneakyThrow(e);
++}
++
+ private static String noMethodReport(String methodName, Object target){
+ 	 return "No matching method found: " + methodName
+ 			+ (target==null?"":" for " + target.getClass());
+@@ -93,11 +101,7 @@ static Object invokeMatchingMethod(String methodName, List methods, Object targe
+ 		}
+ 	catch(Exception e)
+ 		{
+-		if(e.getCause() instanceof Exception)
+-			throw Util.runtimeException(e.getCause());
+-		else if(e.getCause() instanceof Error)
+-			throw (Error) e.getCause();
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(getCauseOrElse(e));
+ 		}
+ 
+ }
+@@ -189,11 +193,7 @@ public static Object invokeConstructor(Class c, Object[] args) {
+ 		}
+ 	catch(Exception e)
+ 		{
+-		if(e.getCause() instanceof Exception)
+-			throw Util.runtimeException(e.getCause());
+-		else if(e.getCause() instanceof Error)
+-			throw (Error) e.getCause();
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(getCauseOrElse(e));
+ 		}
+ }
+ 
+@@ -210,11 +210,7 @@ public static Object invokeStaticMethod(String className, String methodName, Obj
+ 		}
+ 	catch(Exception e)
+ 		{
+-		if(e.getCause() instanceof Exception)
+-			throw Util.runtimeException(e.getCause());
+-		else if(e.getCause() instanceof Error)
+-			throw (Error) e.getCause();
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(getCauseOrElse(e));
+ 		}
+ }
+ 
+@@ -242,7 +238,7 @@ public static Object getStaticField(Class c, String fieldName) {
+ 			}
+ 		catch(IllegalAccessException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		}
+ 	throw new IllegalArgumentException("No matching field found: " + fieldName
+@@ -264,7 +260,7 @@ public static Object setStaticField(Class c, String fieldName, Object val) {
+ 			}
+ 		catch(IllegalAccessException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		return val;
+ 		}
+@@ -283,7 +279,7 @@ public static Object getInstanceField(Object target, String fieldName) {
+ 			}
+ 		catch(IllegalAccessException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		}
+ 	throw new IllegalArgumentException("No matching field found: " + fieldName
+@@ -301,7 +297,7 @@ public static Object setInstanceField(Object target, String fieldName, Object va
+ 			}
+ 		catch(IllegalAccessException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		return val;
+ 		}
+@@ -330,7 +326,7 @@ public static Object invokeInstanceMember(Object target, String name) {
+ 			}
+ 		catch(IllegalAccessException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		}
+ 	return invokeInstanceMethod(target, name, RT.EMPTY_ARRAY);
+@@ -348,7 +344,7 @@ public static Object invokeInstanceMember(String name, Object target, Object arg
+ 			}
+ 		catch(IllegalAccessException e)
+ 			{
+-			throw Util.runtimeException(e);
++			throw Util.sneakyThrow(e);
+ 			}
+ 		return arg1;
+ 		}
+diff --git a/src/jvm/clojure/lang/TransactionalHashMap.java b/src/jvm/clojure/lang/TransactionalHashMap.java
+index ea3f9d7..c8e3080 100644
+--- a/src/jvm/clojure/lang/TransactionalHashMap.java
++++ b/src/jvm/clojure/lang/TransactionalHashMap.java
+@@ -93,7 +93,7 @@ public V remove(Object k){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ 	return (V) ret;
+ }
+@@ -163,7 +163,7 @@ public boolean remove(Object k, Object v){
+ 			}
+ 		catch(Exception ex)
+ 			{
+-			throw Util.runtimeException(ex);
++			throw Util.sneakyThrow(ex);
+ 			}
+ 		return true;
+ 		}
+diff --git a/src/jvm/clojure/lang/Util.java b/src/jvm/clojure/lang/Util.java
+index d751e82..295fe90 100644
+--- a/src/jvm/clojure/lang/Util.java
++++ b/src/jvm/clojure/lang/Util.java
+@@ -159,16 +159,11 @@ static public <K,V> void clearCache(ReferenceQueue rq, ConcurrentHashMap<K, Refe
+ static public RuntimeException runtimeException(String s){
+ 	return new RuntimeException(s);
+ }
++
+ static public RuntimeException runtimeException(String s, Throwable e){
+ 	return new RuntimeException(s, e);
+ }
+ 
+-static public RuntimeException runtimeException(Throwable e){
+-	if(e instanceof RuntimeException)
+-		return (RuntimeException)e;
+-	return new RuntimeException(e);
+-}
+-
+ /**
+  * Throw even checked exceptions without being required
+  * to declare them or catch them. Suggested idiom:
+diff --git a/src/jvm/clojure/lang/Var.java b/src/jvm/clojure/lang/Var.java
+index 3be479b..690e60b 100644
+--- a/src/jvm/clojure/lang/Var.java
++++ b/src/jvm/clojure/lang/Var.java
+@@ -240,7 +240,7 @@ public void setMacro() {
+         }
+     catch (Exception e)
+         {
+-        throw Util.runtimeException(e);
++        throw Util.sneakyThrow(e);
+         }
+ }
+ 
+@@ -271,7 +271,7 @@ public void setTag(Symbol tag) {
+         }
+     catch (Exception e)
+         {
+-        throw Util.runtimeException(e);
++        throw Util.sneakyThrow(e);
+         }
+ }
+ 
+@@ -291,7 +291,7 @@ synchronized public void bindRoot(Object root){
+         }
+     catch (Exception e)
+         {
+-        throw Util.runtimeException(e);
++        throw Util.sneakyThrow(e);
+         }
+     notifyWatches(oldroot,this.root);
+ }
+@@ -389,7 +389,7 @@ public void run(){
+ 		}
+ 	catch(Exception e)
+ 		{
+-		throw Util.runtimeException(e);
++		throw Util.sneakyThrow(e);
+ 		}
+ }
+ 
+@@ -533,7 +533,10 @@ static IFn dissoc = new AFn() {
+ 		    }
+ 	    catch(Exception e)
+ 		    {
+-		    return Util.runtimeException(e);
++// TODO:CLJ-855 "throw Util.sneakyThrow(e)" instead?
++// I don't understand why we are *returing* the exception here instead
++// of just throwing it.
++			return e; 
+ 		    }
+     }
+ };
+-- 
+1.7.6.1
+
