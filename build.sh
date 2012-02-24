@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CLOJURE_SHA="e27a27d9a6dc3fd0d15f26a5076e2876007e0ae6"
+CLOJURE_SHA="4c0722abd84152a841cc38837a03245fd2395bf7"
 
 [ ! -e clojure ] && git clone http://github.com/clojure/clojure
 
