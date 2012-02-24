@@ -1,0 +1,168 @@
+From 15e06c300e0a5a580667e9e22b4582706005a818 Mon Sep 17 00:00:00 2001
+From: Joe Gallo <joegallo@gmail.com>
+Date: Mon, 5 Dec 2011 11:05:15 -0500
+Subject: [PATCH] add Symbol.intern arity for a Namespace and String
+
+---
+ src/jvm/clojure/lang/Compiler.java   |   12 ++++++------
+ src/jvm/clojure/lang/LispReader.java |   12 ++++++------
+ src/jvm/clojure/lang/RT.java         |    8 ++++----
+ src/jvm/clojure/lang/Symbol.java     |    4 ++++
+ 4 files changed, 20 insertions(+), 16 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index cbcf58d..d5f4b84 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -318,7 +318,7 @@ static Symbol resolveSymbol(Symbol sym){
+ 	if(o == null)
+ 		return Symbol.intern(currentNS().name.name, sym.name);
+ 	else if(o instanceof Class)
+-		return Symbol.intern(null, ((Class) o).getName());
++		return Symbol.intern((String) null, ((Class) o).getName());
+ 	else if(o instanceof Var)
+ 			{
+ 			Var v = (Var) o;
+@@ -6851,7 +6851,7 @@ private static Symbol tagOf(Object o){
+ 	if(tag instanceof Symbol)
+ 		return (Symbol) tag;
+ 	else if(tag instanceof String)
+-		return Symbol.intern(null, (String) tag);
++		return Symbol.intern((String) null, (String) tag);
+ 	return null;
+ }
+ 
+@@ -7268,7 +7268,7 @@ static public class NewInstanceExpr extends ObjExpr{
+ 		String[] inames = interfaceNames(interfaces);
+ 
+ 		Class stub = compileStub(slashname(superClass),ret, inames, frm);
+-		Symbol thistag = Symbol.intern(null,stub.getName());
++		Symbol thistag = Symbol.intern((String) null,stub.getName());
+ 
+ 		try
+ 			{
+@@ -7285,7 +7285,7 @@ static public class NewInstanceExpr extends ObjExpr{
+ 				{
+ 				Var.pushThreadBindings(RT.map(METHOD, null,
+ 				                              LOCAL_ENV, ret.fields
+-						, COMPILE_STUB_SYM, Symbol.intern(null, tagName)
++						, COMPILE_STUB_SYM, Symbol.intern((String) null, tagName)
+ 						, COMPILE_STUB_CLASS, stub));
+ 
+ 				ret.hintedFields = RT.subvec(fieldSyms, 0, fieldSyms.count() - ret.altCtorDrops);
+@@ -7606,7 +7606,7 @@ public static class NewInstanceMethod extends ObjMethod{
+ 	Class retClass;
+ 	Class[] exclasses;
+ 
+-	static Symbol dummyThis = Symbol.intern(null,"dummy_this_dlskjsdfower");
++	static Symbol dummyThis = Symbol.intern((String) null,"dummy_this_dlskjsdfower");
+ 	private IPersistentVector parms;
+ 
+ 	public NewInstanceMethod(ObjExpr objx, ObjMethod parent){
+@@ -7641,7 +7641,7 @@ public static class NewInstanceMethod extends ObjMethod{
+ 		//this-name might be nil
+ 		NewInstanceMethod method = new NewInstanceMethod(objx, (ObjMethod) METHOD.deref());
+ 		Symbol dotname = (Symbol)RT.first(form);
+-		Symbol name = (Symbol) Symbol.intern(null,munge(dotname.name)).withMeta(RT.meta(dotname));
++		Symbol name = (Symbol) Symbol.intern((String) null,munge(dotname.name)).withMeta(RT.meta(dotname));
+ 		IPersistentVector parms = (IPersistentVector) RT.second(form);
+ 		if(parms.count() == 0)
+ 			{
+diff --git a/src/jvm/clojure/lang/LispReader.java b/src/jvm/clojure/lang/LispReader.java
+index dbb59a6..f045ccf 100644
+--- a/src/jvm/clojure/lang/LispReader.java
++++ b/src/jvm/clojure/lang/LispReader.java
+@@ -40,7 +40,7 @@ public class LispReader{
+ 
+ static final Symbol QUOTE = Symbol.intern("quote");
+ static final Symbol THE_VAR = Symbol.intern("var");
+-//static Symbol SYNTAX_QUOTE = Symbol.intern(null, "syntax-quote");
++//static Symbol SYNTAX_QUOTE = Symbol.intern("syntax-quote");
+ static Symbol UNQUOTE = Symbol.intern("clojure.core", "unquote");
+ static Symbol UNQUOTE_SPLICING = Symbol.intern("clojure.core", "unquote-splicing");
+ static Symbol CONCAT = Symbol.intern("clojure.core", "concat");
+@@ -620,7 +620,7 @@ public static class DispatchReader extends AFn{
+ }
+ 
+ static Symbol garg(int n){
+-	return Symbol.intern(null, (n == -1 ? "rest" : ("p" + n)) + "__" + RT.nextID() + "#");
++	return Symbol.intern((String) null, (n == -1 ? "rest" : ("p" + n)) + "__" + RT.nextID() + "#");
+ }
+ 
+ public static class FnReader extends AFn{
+@@ -773,16 +773,16 @@ public static class SyntaxQuoteReader extends AFn{
+ 					throw new IllegalStateException("Gensym literal not in syntax-quote");
+ 				Symbol gs = (Symbol) gmap.valAt(sym);
+ 				if(gs == null)
+-					GENSYM_ENV.set(gmap.assoc(sym, gs = Symbol.intern(null,
++					GENSYM_ENV.set(gmap.assoc(sym, gs = Symbol.intern((String) null,
+ 					                                                  sym.name.substring(0, sym.name.length() - 1)
+ 					                                                  + "__" + RT.nextID() + "__auto__")));
+ 				sym = gs;
+ 				}
+ 			else if(sym.ns == null && sym.name.endsWith("."))
+ 				{
+-				Symbol csym = Symbol.intern(null, sym.name.substring(0, sym.name.length() - 1));
++				Symbol csym = Symbol.intern((String) null, sym.name.substring(0, sym.name.length() - 1));
+ 				csym = Compiler.resolveSymbol(csym);
+-				sym = Symbol.intern(null, csym.name.concat("."));
++				sym = Symbol.intern((String) null, csym.name.concat("."));
+ 				}
+ 			else if(sym.ns == null && sym.name.startsWith("."))
+ 				{
+@@ -793,7 +793,7 @@ public static class SyntaxQuoteReader extends AFn{
+ 					Object maybeClass = null;
+ 					if(sym.ns != null)
+ 						maybeClass = Compiler.currentNS().getMapping(
+-								Symbol.intern(null, sym.ns));
++								Symbol.intern((String) null, sym.ns));
+ 					if(maybeClass instanceof Class)
+ 						{
+ 						// Classname/foo -> package.qualified.Classname/foo
+diff --git a/src/jvm/clojure/lang/RT.java b/src/jvm/clojure/lang/RT.java
+index 1d0fba8..d0ee38f 100644
+--- a/src/jvm/clojure/lang/RT.java
++++ b/src/jvm/clojure/lang/RT.java
+@@ -30,8 +30,8 @@ import java.nio.charset.Charset;
+ 
+ public class RT{
+ 
+-static final public Boolean T = Boolean.TRUE;//Keyword.intern(Symbol.intern(null, "t"));
+-static final public Boolean F = Boolean.FALSE;//Keyword.intern(Symbol.intern(null, "t"));
++static final public Boolean T = Boolean.TRUE;//Keyword.intern(Symbol.intern((String) null, "t"));
++static final public Boolean F = Boolean.FALSE;//Keyword.intern(Symbol.intern((String) null, "t"));
+ static final public String LOADER_SUFFIX = "__init";
+ 
+ //simple-symbol->class
+@@ -325,11 +325,11 @@ static public Keyword keyword(String ns, String name){
+ }
+ 
+ static public Var var(String ns, String name){
+-	return Var.intern(Namespace.findOrCreate(Symbol.intern(null, ns)), Symbol.intern(null, name));
++	return Var.intern(Namespace.findOrCreate(Symbol.intern((String) null, ns)), Symbol.intern((String) null, name));
+ }
+ 
+ static public Var var(String ns, String name, Object init){
+-	return Var.intern(Namespace.findOrCreate(Symbol.intern(null, ns)), Symbol.intern(null, name), init);
++	return Var.intern(Namespace.findOrCreate(Symbol.intern((String) null, ns)), Symbol.intern((String) null, name), init);
+ }
+ 
+ public static void loadResourceScript(String name) throws IOException{
+diff --git a/src/jvm/clojure/lang/Symbol.java b/src/jvm/clojure/lang/Symbol.java
+index 193ed0b..99f2f71 100644
+--- a/src/jvm/clojure/lang/Symbol.java
++++ b/src/jvm/clojure/lang/Symbol.java
+@@ -51,6 +51,10 @@ static public Symbol intern(String ns, String name){
+ 	return new Symbol(ns == null ? null : ns.intern(), name.intern());
+ }
+ 
++static public Symbol intern(Namespace ns, String name){
++	return new Symbol(ns == null ? null : ns.getName().getName(), name.intern());
++}
++
+ static public Symbol intern(String nsname){
+ 	int i = nsname.lastIndexOf('/');
+ 	if(i == -1 || nsname.equals("/"))
+-- 
+1.7.6.3
+

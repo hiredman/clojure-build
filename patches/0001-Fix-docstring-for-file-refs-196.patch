@@ -1,0 +1,25 @@
+From 2c6ff5988973f22eca06ff96e455b7cf8ce3f073 Mon Sep 17 00:00:00 2001
+From: Colin Jones <trptcolin@gmail.com>
+Date: Fri, 31 Dec 2010 14:27:40 -0600
+Subject: [PATCH] Fix docstring for *file*, refs #196.
+
+---
+ src/clj/clojure/core.clj |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 5b4f146..a321620 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -5568,7 +5568,7 @@
+ (add-doc-and-meta *file*
+   "The path of the file being evaluated, as a String.
+ 
+-  Evaluates to nil when there is no file, eg. in the REPL."
++  Evaluates to \"NO_SOURCE_PATH\" when there is no file, eg. in the REPL."
+   {:added "1.0"})
+ 
+ (add-doc-and-meta *command-line-args*
+-- 
+1.7.0.4
+

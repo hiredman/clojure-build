@@ -1,0 +1,43 @@
+From c293f4b78ad6faa1d0c5d09ea61f05c69841e7b8 Mon Sep 17 00:00:00 2001
+From: Alf Kristian Stoyle <alf.kristian@gmail.com>
+Date: Mon, 15 Aug 2011 17:38:09 +0200
+Subject: [PATCH] Make sure the clojure.core/bases function always returns a
+ seq.
+
+Previously the function returned a clojure.lang.Cons when passed a class and a Java array when passed an interface. Expanded existing test to show that the changed code is correct.
+---
+ src/clj/clojure/core.clj                   |    2 +-
+ test/clojure/test_clojure/java_interop.clj |    4 +++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9922264..3719dee 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -4851,7 +4851,7 @@
+     (let [i (.getInterfaces c)
+           s (.getSuperclass c)]
+       (not-empty
+-       (if s (cons s i) i)))))
++       (if s (cons s i) (seq i))))))
+ 
+ (defn supers
+   "Returns the immediate and indirect superclasses and interfaces of c, if any"
+diff --git a/test/clojure/test_clojure/java_interop.clj b/test/clojure/test_clojure/java_interop.clj
+index b9133d0..b2df168 100644
+--- a/test/clojure/test_clojure/java_interop.clj
++++ b/test/clojure/test_clojure/java_interop.clj
+@@ -139,7 +139,9 @@
+       (bases java.lang.Math)
+         (list java.lang.Object)
+       (bases java.lang.Integer)
+-        (list java.lang.Number java.lang.Comparable) ))
++        (list java.lang.Number java.lang.Comparable)
++      (bases java.util.List)
++        (list java.util.Collection) ))
+ 
+ (deftest test-supers
+   (are [x y] (= x y)
+-- 
+1.7.6
+

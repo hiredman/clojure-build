@@ -1,0 +1,25 @@
+From 749c81dce24ec5c4451ff65a7098010173e5c62e Mon Sep 17 00:00:00 2001
+From: Colin Jones <trptcolin@gmail.com>
+Date: Tue, 30 Nov 2010 14:51:48 -0600
+Subject: [PATCH] Fix ns docstring to avoid dotted lib names.
+
+---
+ src/clj/clojure/core.clj |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index d55d5bf..d261027 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -5076,7 +5076,7 @@
+ 
+   (ns foo.bar
+     (:refer-clojure :exclude [ancestors printf])
+-    (:require (clojure.contrib sql sql.tests))
++    (:require (clojure.contrib sql combinatorics))
+     (:use (my.lib this that))
+     (:import (java.util Date Timer Random)
+              (java.sql Connection Statement)))"
+-- 
+1.7.0.4
+

@@ -1,0 +1,44 @@
+From 2a71b7ee1de1ccb059d779e305d8280b55a2895d Mon Sep 17 00:00:00 2001
+From: Joe Gallo <joegallo@gmail.com>
+Date: Mon, 24 Oct 2011 15:46:44 -0400
+Subject: [PATCH] make interleave handle odd arugments in the same manner as
+ concat
+
+---
+ src/clj/clojure/core.clj                |    2 ++
+ test/clojure/test_clojure/sequences.clj |    6 +++++-
+ 2 files changed, 7 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 3d27076..e6ef987 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -3822,6 +3822,8 @@
+   "Returns a lazy seq of the first item in each coll, then the second etc."
+   {:added "1.0"
+    :static true}
++  ([] (lazy-seq nil))
++  ([c1] (lazy-seq c1))
+   ([c1 c2]
+      (lazy-seq
+       (let [s1 (seq c1) s2 (seq c2)]
+diff --git a/test/clojure/test_clojure/sequences.clj b/test/clojure/test_clojure/sequences.clj
+index e69fdbb..2d739f9 100644
+--- a/test/clojure/test_clojure/sequences.clj
++++ b/test/clojure/test_clojure/sequences.clj
+@@ -682,7 +682,11 @@
+ 
+     (interleave [] [3 4]) ()
+     (interleave [1 2] []) ()
+-    (interleave [] []) () ))
++    (interleave [] []) ()
++
++    (interleave [1]) '(1)
++
++    (interleave) () ))
+ 
+ 
+ (deftest test-zipmap
+-- 
+1.7.6.3
+
