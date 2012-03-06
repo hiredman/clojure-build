@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
-CLOJURE_SHA="b62df08fc3567d17cca68acfaa96adba2880126d"
+set -e
+
+CLOJURE_SHA="4be26980e2c4a983045f0b60e7d44a6f38066c6b"
 
 [ ! -e clojure ] && git clone http://github.com/clojure/clojure
 
@@ -14,10 +16,9 @@ for i in `git status --porcelain|cut -d \  -f 2`; do rm -rf $i; done
 
 git reset --hard $CLOJURE_SHA
 
-for i in `ls ../patches`; do
-    echo "applying" $i
-    patch --strip 1 < ../patches/$i > /dev/null
-    [ ! 0 -eq $? ] && echo "$i failed to apply"
+for i in `cat ../patches/patch-order.txt`; do
+    echo "    applying" $i
+    git am -s < ../patches/$i
 done
 
 MAVEN_OPTS="-Djava.awt.headless=true"

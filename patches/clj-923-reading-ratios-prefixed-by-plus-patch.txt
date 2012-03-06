@@ -1,0 +1,53 @@
+From 2f1158afd7a3e27f3862f2c0820963d37283b1b1 Mon Sep 17 00:00:00 2001
+From: Cosmin Stejerean <cosmin@offbytwo.com>
+Date: Sat, 4 Feb 2012 11:24:57 +1100
+Subject: [PATCH] fixed reading of ratios prefixed by + and added tests
+
+---
+ src/jvm/clojure/lang/LispReader.java |    5 ++++-
+ test/clojure/test_clojure/reader.clj |    6 +++++-
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/LispReader.java b/src/jvm/clojure/lang/LispReader.java
+index b0eb8b8..cfd57c8 100644
+--- a/src/jvm/clojure/lang/LispReader.java
++++ b/src/jvm/clojure/lang/LispReader.java
+@@ -399,7 +399,10 @@ private static Object matchNumber(String s){
+ 	m = ratioPat.matcher(s);
+ 	if(m.matches())
+ 		{
+-		return Numbers.divide(Numbers.reduceBigInt(BigInt.fromBigInteger(new BigInteger(m.group(1)))),
++            String numerator = m.group(1);
++            if (numerator.startsWith("+")) numerator = numerator.substring(1);
++
++            return Numbers.divide(Numbers.reduceBigInt(BigInt.fromBigInteger(new BigInteger(numerator))),
+ 		                      Numbers.reduceBigInt(BigInt.fromBigInteger(new BigInteger(m.group(2)))));
+ 		}
+ 	return null;
+diff --git a/test/clojure/test_clojure/reader.clj b/test/clojure/test_clojure/reader.clj
+index be6d237..648db25 100644
+--- a/test/clojure/test_clojure/reader.clj
++++ b/test/clojure/test_clojure/reader.clj
+@@ -21,7 +21,7 @@
+   (:use [clojure.instant :only [read-instant-date
+                                 read-instant-calendar
+                                 read-instant-timestamp]])
+-  (:import clojure.lang.BigInt
++  (:import [clojure.lang BigInt Ratio]
+            java.util.TimeZone))
+ 
+ ;; Symbols
+@@ -211,6 +211,10 @@
+ 
+   (is (instance? BigDecimal -1.0M))
+   (is (instance? BigDecimal -1.M))
++
++  (is (instance? Ratio 1/2))
++  (is (instance? Ratio -1/2))
++  (is (instance? Ratio +1/2))
+ )
+ 
+ ;; Characters
+-- 
+1.7.3.4
+

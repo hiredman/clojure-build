@@ -1,0 +1,601 @@
+From ae1ea5637a71dab1478a9c1dc6162d1b18486cc9 Mon Sep 17 00:00:00 2001
+From: Mike Anderson <mike_r_anderson@yahoo.co.uk>
+Date: Sun, 4 Dec 2011 22:58:50 -0800
+Subject: [PATCH] Improvements to reduce performance
+
+Convert reduce to use internal-reduce for both arities, backed by
+IReduce in Java
+
+---
+ src/clj/clojure/core.clj                    |    7 +-
+ src/clj/clojure/core/protocols.clj          |  117 ++++++++++++++++-----------
+ src/jvm/clojure/lang/ArrayChunk.java        |   14 +++-
+ src/jvm/clojure/lang/ArraySeq.java          |    2 +-
+ src/jvm/clojure/lang/IReduce.java           |    7 +-
+ src/jvm/clojure/lang/PersistentHashMap.java |   64 ++++++++++++++-
+ src/jvm/clojure/lang/PersistentVector.java  |   35 +++++++-
+ src/jvm/clojure/lang/RT.java                |   38 +++++++++
+ src/jvm/clojure/lang/StringSeq.java         |   21 +++++-
+ src/script/run_tests.clj                    |    1 +
+ test/clojure/test_clojure/reduce.clj        |   56 +++++++++++++
+ 11 files changed, 295 insertions(+), 67 deletions(-)
+ create mode 100644 test/clojure/test_clojure/reduce.clj
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 1dc12c3..6bed802 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -6016,12 +6016,9 @@
+   items, returns val and f is not called."
+   {:added "1.0"}
+   ([f coll]
+-     (if-let [s (seq coll)]
+-       (reduce f (first s) (next s))
+-       (f)))
++    (clojure.core.protocols/internal-reduce coll f))
+   ([f val coll]
+-     (let [s (seq coll)]
+-       (clojure.core.protocols/internal-reduce s f val))))
++    (clojure.core.protocols/internal-reduce coll f val)))
+ 
+ (defn into
+   "Returns a new coll consisting of to-coll with all of the items of
+diff --git a/src/clj/clojure/core/protocols.clj b/src/clj/clojure/core/protocols.clj
+index bcf4f7b..ac0b66a 100644
+--- a/src/clj/clojure/core/protocols.clj
++++ b/src/clj/clojure/core/protocols.clj
+@@ -9,71 +9,95 @@
+ (ns clojure.core.protocols)
+ 
+ (defprotocol InternalReduce
+-  "Protocol for concrete seq types that can reduce themselves
++  "Protocol for concrete types that can reduce themselves
+    faster than first/next recursion. Called by clojure.core/reduce."
+-  (internal-reduce [seq f start]))
++  (internal-reduce
++    [seq f]
++    [seq f start]))
+ 
+ (extend-protocol InternalReduce
+   nil
+   (internal-reduce
+-   [s f val]
+-   val)
++    ([s f]
++      (f))
++    ([s f val]
++      val))
+   
+-  ;; handles vectors and ranges
+-  clojure.lang.IChunkedSeq
+-  (internal-reduce
+-   [s f val]
+-   (if-let [s (seq s)]
+-     (if (chunked-seq? s)
+-       (recur (chunk-next s)
+-              f
+-              (.reduce (chunk-first s) f val))
+-       (internal-reduce s f val))
+-     val))
+- 
+-  clojure.lang.StringSeq
++  ;; handle reducible collection types directly
++  clojure.lang.IReduce
+   (internal-reduce
+-   [str-seq f val]
+-   (let [s (.s str-seq)]
+-     (loop [i (.i str-seq)
+-            val val]
+-       (if (< i (.length s))
+-         (recur (inc i) (f val (.charAt s i)))
+-         val))))
++    ([s f]
++      (.reduce s f))
++    ([s f val]
++      (.reduce s f val)))
+   
+-  clojure.lang.ArraySeq
++  ;; special case handling for strings
++  java.lang.String
+   (internal-reduce
+-       [a-seq f val]
+-       (let [^objects arr (.array a-seq)]
+-         (loop [i (.index a-seq)
+-                val val]
+-           (if (< i (alength arr))
+-             (recur (inc i) (f val (aget arr i)))
+-             val))))
++    ([s f]
++      (if (= 0 (.length s))
++        (f)
++        (loop [i 1
++               val ^Object (.charAt s 0)]
++	        (if (< i (.length s))
++	          (recur (inc i) (f val (.charAt s i)))
++	          val))))
++    ([s f val]
++      (loop [i 0
++             val val]
++        (if (< i (.length s))
++          (recur (inc i) (f val (.charAt s i)))
++          val))))
+   
+-  java.lang.Object
++  clojure.lang.ISeq
+   (internal-reduce
+-   [s f val]
+-   (loop [cls (class s)
+-          s s
+-          f f
+-          val val]
+-     (if-let [s (seq s)]
+-       ;; roll over to faster implementation if underlying seq changes type
+-       (if (identical? (class s) cls)
+-         (recur cls (next s) f (f val (first s)))
+-         (internal-reduce s f val))
+-       val))))
++    ([s f]
++      (internal-reduce (next s) f (first s)))
++    ([s f val]
++	   (loop [cls (class s)
++	          s (seq s)
++	          f f
++	          val val]
++	     (if s
++	       ;; roll over to faster implementation if underlying seq changes type
++	       (if (identical? (class s) cls)
++	         (recur cls (next s) f (f val (first s)))
++	         (internal-reduce s f val))
++	       val))))
++
++   java.lang.Object
++  (internal-reduce
++    ([s f]
++      (if-let [ss ^clojure.lang.ISeq (seq s)]
++        (internal-reduce (next ss) f (first ss))
++        (f)))
++    ([s f val]
++      (if-let [ss ^clojure.lang.ISeq (seq s)]
++        (internal-reduce ss f val)
++        val)))
++  
++  )
+ 
+ (def arr-impl
+   '(internal-reduce
+-       [a-seq f val]
++     ([a-seq f]
++       (let [arr (.array a-seq)
++             end (alength arr)
++             i (.index a-seq)]
++         (if (< i end)
++           (loop [offset (inc i)
++                  val ^Object (aget arr i)]
++             (if (< offset end)
++               (recur (inc offset) (f val (aget arr offset)))
++               val))
++           (f))))
++     ([a-seq f val]
+        (let [arr (.array a-seq)]
+          (loop [i (.index a-seq)
+                 val val]
+            (if (< i (alength arr))
+              (recur (inc i) (f val (aget arr i)))
+-             val)))))
++             val))))))
+ 
+ (defn- emit-array-impls*
+   [syms]
+@@ -91,4 +115,3 @@
+      ~@(emit-array-impls* syms)))
+ 
+ (emit-array-impls int long float double byte char boolean)
+-
+diff --git a/src/jvm/clojure/lang/ArrayChunk.java b/src/jvm/clojure/lang/ArrayChunk.java
+index 76e818c..ad72b94 100644
+--- a/src/jvm/clojure/lang/ArrayChunk.java
++++ b/src/jvm/clojure/lang/ArrayChunk.java
+@@ -14,7 +14,7 @@ package clojure.lang;
+ 
+ import java.io.Serializable;
+ 
+-public final class ArrayChunk implements IChunk, Serializable {
++public final class ArrayChunk implements IChunk, Serializable, IReduce {
+ 
+ final Object[] array;
+ final int off;
+@@ -55,9 +55,17 @@ public IChunk dropFirst(){
+ }
+ 
+ public Object reduce(IFn f, Object start) {
+-		Object ret = f.invoke(start, array[off]);
+-		for(int x = off + 1; x < end; x++)
++		Object ret = start;
++		for(int x = off; x < end; x++)
+ 			ret = f.invoke(ret, array[x]);
+ 		return ret;
+ }
++
++public Object reduce(IFn f) {
++	if (off>=end) return f.invoke();
++	Object ret = array[off];
++	for(int x = off+1; x < end; x++)
++		ret = f.invoke(ret, array[x]);
++	return ret;
++}
+ }
+diff --git a/src/jvm/clojure/lang/ArraySeq.java b/src/jvm/clojure/lang/ArraySeq.java
+index f6f0dd7..249d52d 100644
+--- a/src/jvm/clojure/lang/ArraySeq.java
++++ b/src/jvm/clojure/lang/ArraySeq.java
+@@ -14,7 +14,7 @@ package clojure.lang;
+ 
+ import java.lang.reflect.Array;
+ 
+-public class ArraySeq extends ASeq implements IndexedSeq, IReduce{
++public class ArraySeq extends ASeq implements IndexedSeq, IReduce {
+ public final Object array;
+ final int i;
+ final Object[] oa;
+diff --git a/src/jvm/clojure/lang/IReduce.java b/src/jvm/clojure/lang/IReduce.java
+index 364225b..f51d1c1 100644
+--- a/src/jvm/clojure/lang/IReduce.java
++++ b/src/jvm/clojure/lang/IReduce.java
+@@ -12,8 +12,7 @@
+ 
+ package clojure.lang;
+ 
+-public interface IReduce{
+-Object reduce(IFn f) ;
+-
+-Object reduce(IFn f, Object start) ;
++public interface IReduce {
++	Object reduce(IFn f) ;
++	Object reduce(IFn f, Object start);
+ }
+diff --git a/src/jvm/clojure/lang/PersistentHashMap.java b/src/jvm/clojure/lang/PersistentHashMap.java
+index 928b123..94796ee 100644
+--- a/src/jvm/clojure/lang/PersistentHashMap.java
++++ b/src/jvm/clojure/lang/PersistentHashMap.java
+@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
+  Any errors are my own
+  */
+ 
+-public class PersistentHashMap extends APersistentMap implements IEditableCollection, IObj {
++public class PersistentHashMap extends APersistentMap implements IEditableCollection, IObj, IReduce {
+ 
+ final int count;
+ final INode root;
+@@ -187,6 +187,14 @@ public ISeq seq(){
+ 	return hasNull ? new Cons(new MapEntry(null, nullValue), s) : s;
+ }
+ 
++public Object reduce(IFn function, Object value) {
++	return root.reduce(function,value);
++}
++
++public Object reduce(IFn function) {
++	return root.reduce(function);
++}
++
+ public IPersistentCollection empty(){
+ 	return EMPTY.withMeta(meta());	
+ }
+@@ -300,6 +308,10 @@ static final class TransientHashMap extends ATransientMap {
+ static interface INode extends Serializable {
+ 	INode assoc(int shift, int hash, Object key, Object val, Box addedLeaf);
+ 
++	Object reduce(IFn function);
++
++	Object reduce(IFn function, Object value);
++
+ 	INode without(int shift, int hash, Object key);
+ 
+ 	IMapEntry find(int shift, int hash, Object key);
+@@ -476,6 +488,23 @@ final static class ArrayNode implements INode{
+ 		}
+ 		
+ 	}
++
++	public Object reduce(IFn function, Object value) {
++		for (int i=0; i<array.length; i++) {
++			value=array[i].reduce(function, value);
++		}
++		return value;
++	}
++
++	public Object reduce(IFn function) {
++		int count=array.length;
++		if (count==0) return function.invoke();
++		Object value=array[0].reduce(function);
++		for (int i=1; i<array.length; i++) {
++			value=array[i].reduce(function);
++		}
++		return value;
++	}
+ }
+ 
+ final static class BitmapIndexedNode implements INode{
+@@ -717,6 +746,23 @@ final static class BitmapIndexedNode implements INode{
+ 		}
+ 		return this;
+ 	}
++
++	public Object reduce(IFn function, Object value) {
++		for (int i=0; i<array.length; i+=2) {
++			value=function.invoke(value, new MapEntry(array[i],array[i+1]));
++		}
++		return value;
++	}
++
++	public Object reduce(IFn function) {
++		int count=array.length;
++		if (count==0) return function.invoke();
++		Object value=new MapEntry(array[0],array[1]);
++		for (int i=2; i<array.length; i+=2) {
++			value=function.invoke(value, new MapEntry(array[i],array[i+1]));
++		}
++		return value;
++	}
+ }
+ 
+ final static class HashCollisionNode implements INode{
+@@ -864,6 +910,22 @@ final static class HashCollisionNode implements INode{
+ 		editable.count--;
+ 		return editable;
+ 	}
++
++	public Object reduce(IFn function, Object value) {
++		for (int i=0; i<count; i++) {
++			value=function.invoke(value,array[i]);
++		}
++		return value;
++	}
++
++	public Object reduce(IFn function) {
++		if (count==0) return function.invoke();
++		Object value=array[0];
++		for (int i=1; i<count; i++) {
++			value=function.invoke(value,array[i]);
++		}
++		return value;
++	}
+ }
+ 
+ /*
+diff --git a/src/jvm/clojure/lang/PersistentVector.java b/src/jvm/clojure/lang/PersistentVector.java
+index f8534ba..e156dcc 100644
+--- a/src/jvm/clojure/lang/PersistentVector.java
++++ b/src/jvm/clojure/lang/PersistentVector.java
+@@ -15,8 +15,9 @@ package clojure.lang;
+ import java.io.Serializable;
+ import java.util.List;
+ import java.util.concurrent.atomic.AtomicReference;
++import clojure.lang.ISeq;
+ 
+-public class PersistentVector extends APersistentVector implements IObj, IEditableCollection{
++public class PersistentVector extends APersistentVector implements IObj, IEditableCollection {
+ 
+ static class Node implements Serializable {
+ 	transient final AtomicReference<Thread> edit;
+@@ -232,7 +233,7 @@ public ISeq seq(){
+ 	return chunkedSeq();
+ }
+ 
+-static public final class ChunkedSeq extends ASeq implements IChunkedSeq{
++static public final class ChunkedSeq extends ASeq implements IChunkedSeq, IReduce {
+ 
+ 	public final PersistentVector vec;
+ 	final Object[] node;
+@@ -263,13 +264,13 @@ static public final class ChunkedSeq extends ASeq implements IChunkedSeq{
+ 
+ 	public IChunk chunkedFirst() {
+ 		return new ArrayChunk(node, offset);
+-		}
++	}
+ 
+-	public ISeq chunkedNext(){
++	public ChunkedSeq chunkedNext(){
+ 		if(i + node.length < vec.cnt)
+ 			return new ChunkedSeq(vec,i+ node.length,0);
+ 		return null;
+-		}
++	}
+ 
+ 	public ISeq chunkedMore(){
+ 		ISeq s = chunkedNext();
+@@ -293,6 +294,30 @@ static public final class ChunkedSeq extends ASeq implements IChunkedSeq{
+ 			return new ChunkedSeq(vec, node, i, offset + 1);
+ 		return chunkedNext();
+ 	}
++
++	public Object reduce(IFn f) {
++		Object val=node[offset];
++
++		for (int j=offset+1; j<node.length; j++) {
++			val=f.invoke(val,node[j]);
++		}
++
++		ISeq next=chunkedNext();
++		if (next!=null) val=RT.reduce(next, f, val);
++		return val;
++	}
++
++	public Object reduce(IFn f, Object start) {
++		Object val=start;
++
++		for (int j=offset; j<node.length; j++) {
++			val=f.invoke(val,node[j]);
++		}
++
++		ISeq next=chunkedNext();
++		if (next!=null) val=RT.reduce(next, f, val);
++		return val;
++	}
+ }
+ 
+ public IPersistentCollection empty(){
+diff --git a/src/jvm/clojure/lang/RT.java b/src/jvm/clojure/lang/RT.java
+index 3f77ad2..e09e9d0 100644
+--- a/src/jvm/clojure/lang/RT.java
++++ b/src/jvm/clojure/lang/RT.java
+@@ -1711,6 +1711,44 @@ static public Object readString(String s){
+ 	}
+ }
+ 
++static public Object reduce(Object s, IFn f) {
++	if (s==null) return f.invoke();
++	if (s instanceof IReduce)
++		return ((IReduce)s).reduce(f);
++	if (s instanceof ISeq) {
++		ISeq seq=(ISeq)s;
++		Object val=seq.first();
++		while (seq!=null) {
++			seq=seq.next();
++			if (seq instanceof IReduce) {
++				return ((IReduce)seq).reduce(f,val);
++			}
++			val=f.invoke(val,seq.first());
++		}
++		return val;
++	}
++	throw new IllegalArgumentException("RT.reduce() requires an IReduce or ISeq");
++}
++
++static public Object reduce(Object s, IFn f, Object start) {
++	if (s==null) return start;
++	if (s instanceof IReduce)
++		return ((IReduce)s).reduce(f,start);
++	if (s instanceof ISeq) {
++		Object val=start;
++		ISeq seq=((ISeq)s).next();
++		while (seq!=null) {
++			val=f.invoke(val,seq.first());
++			seq=seq.next();
++			if (seq instanceof IReduce) {
++				return ((IReduce)seq).reduce(f,val);
++			}
++		}
++		return val;
++	}
++	throw new IllegalArgumentException("RT.reduce() requires an IReduce or ISeq");
++}
++
+ static public void print(Object x, Writer w) throws IOException{
+ 	//call multimethod
+ 	if(PRINT_INITIALIZED.isBound() && RT.booleanCast(PRINT_INITIALIZED.deref()))
+diff --git a/src/jvm/clojure/lang/StringSeq.java b/src/jvm/clojure/lang/StringSeq.java
+index bcb269d..4e96f1e 100644
+--- a/src/jvm/clojure/lang/StringSeq.java
++++ b/src/jvm/clojure/lang/StringSeq.java
+@@ -12,7 +12,7 @@
+ 
+ package clojure.lang;
+ 
+-public class StringSeq extends ASeq implements IndexedSeq{
++public class StringSeq extends ASeq implements IndexedSeq, IReduce{
+ public final CharSequence s;
+ public final int i;
+ 
+@@ -51,4 +51,23 @@ public int index(){
+ public int count(){
+ 	return s.length() - i;
+ }
++
++public Object reduce(IFn f) {
++	int length=s.length();
++	if (i>=length) return f.invoke();
++	Object val=s.charAt(i);
++	for (int j=i+1; j<length; j++ ) {
++		val=f.invoke(val,s.charAt(j));
++	}
++	return val;
++}
++
++public Object reduce(IFn f, Object start) {
++	int length=s.length();
++	Object val=start;
++	for (int j=i; j<length; j++ ) {
++		val=f.invoke(val,s.charAt(j));
++	}
++	return val;
++}
+ }
+diff --git a/src/script/run_tests.clj b/src/script/run_tests.clj
+index 6720abd..b0a8e1d 100644
+--- a/src/script/run_tests.clj
++++ b/src/script/run_tests.clj
+@@ -39,6 +39,7 @@ clojure.test-clojure.printer
+ clojure.test-clojure.protocols
+ clojure.test-clojure.protocols.hash-collisions
+ clojure.test-clojure.reader
++clojure.test-clojure.reduce
+ clojure.test-clojure.reflect
+ clojure.test-clojure.refs
+ clojure.test-clojure.repl
+diff --git a/test/clojure/test_clojure/reduce.clj b/test/clojure/test_clojure/reduce.clj
+new file mode 100644
+index 0000000..c103cb3
+--- /dev/null
++++ b/test/clojure/test_clojure/reduce.clj
+@@ -0,0 +1,56 @@
++;   Copyright (c) Rich Hickey. All rights reserved.
++;   The use and distribution terms for this software are covered by the
++;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
++;   which can be found in the file epl-v10.html at the root of this distribution.
++;   By using this software in any fashion, you are agreeing to be bound by
++;   the terms of this license.
++;   You must not remove this notice, or any other, from this software.
++
++; Author: Mike Anderson
++
++
++(ns clojure.test-clojure.reduce
++  (:use clojure.test))
++
++;; utility functions
++(defn multiply [x y] (* x y))
++
++(deftest test-nil-reduce
++  ; reduce on nil does nothing
++  (is (= 1 (reduce multiply 1 nil)))
++  
++  ; reduce on empty collections does nothing
++  (is (= 1 (reduce multiply 1 [])))
++  (is (= 1 (reduce multiply 1 {})))
++  (is (= 1 (reduce multiply 1 '())))
++  (is (= 1 (reduce multiply 1 #{})))
++  (is (= 1 (reduce multiply 1 (char-array 0)))))
++
++(deftest test-map-reductions
++  ;reduce over a 100-element map
++  (let [ms (zipmap (range 100) (range 100))]
++    (is (= 4950 (reduce (fn [acc [k v]] (+ acc v)) 0 ms)))))
++
++(deftest test-one-element-reductions
++  ; reduce on one-element collections produces unchanged value and does not all function
++  (is (= 2 (reduce multiply [2])))
++  (is (= 2 (reduce multiply '(2))))
++  (is (= 2 (reduce multiply #{2}))))
++
++(deftest test-one-element-reductions-initial-value
++  ; reduce on one-element collections with initial value applies function once
++  (is (= 6 (reduce multiply 3 [2])))
++  (is (= 6 (reduce multiply 3 '(2))))
++  (is (= 6 (reduce multiply 3 #{2}))))
++
++(deftest test-two-element-reductions
++  ; reduce on two-element collections applies function once
++  (is (= 6 (reduce multiply [2 3])))
++  (is (= 6 (reduce multiply '(2 3))))
++  (is (= 6 (reduce multiply #{2 3}))))
++
++(deftest test-string-reductions
++  (is (= "Hello World" (reduce str "" "Hello World")))
++  (is (= \a (reduce (fn [] :shouldnt-happen) "a")))
++  (is (= :ok (reduce (fn [] :shouldnt-happen) :ok "")))
++  (is (= :ok (reduce (fn [] :ok) ""))))
+\ No newline at end of file
+-- 
+1.7.3.4
+

@@ -1,0 +1,80 @@
+From af8cf00f6478a7800052e3ec5eec8f3bff2a23a1 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Tue, 21 Feb 2012 18:28:41 -0800
+Subject: [PATCH] Make cl-format coerce args for E, F, and G directives from Ratios to doubles
+
+---
+ src/clj/clojure/pprint/cl_format.clj               |    5 ++++-
+ .../clojure/test_clojure/pprint/test_cl_format.clj |    9 +++++++++
+ 2 files changed, 13 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/pprint/cl_format.clj b/src/clj/clojure/pprint/cl_format.clj
+index ef5c981..846702e 100644
+--- a/src/clj/clojure/pprint/cl_format.clj
++++ b/src/clj/clojure/pprint/cl_format.clj
+@@ -627,6 +627,7 @@ Note this should only be used for the last one in the sequence"
+         d (:d params)
+         [arg navigator] (next-arg navigator)
+         [sign abs] (if (neg? arg) ["-" (- arg)] ["+" arg])
++        abs (if (instance? clojure.lang.Ratio abs) (double abs) abs)
+         [mantissa exp] (float-parts abs)
+         scaled-exp (+ exp (:k params))
+         add-sign (or (:at params) (neg? arg))
+@@ -663,7 +664,8 @@ Note this should only be used for the last one in the sequence"
+ ;; TODO: support rationals. Back off to ~D/~A is the appropriate cases
+ ;; TODO: define ~E representation for Infinity
+ (defn- exponential-float [params navigator offsets]
+-  (let [[arg navigator] (next-arg navigator)]
++  (let [[arg navigator] (next-arg navigator)
++        arg (if (instance? clojure.lang.Ratio arg) (double arg) arg)]
+     (loop [[mantissa exp] (float-parts (if (neg? arg) (- arg) arg))]
+       (let [w (:w params)
+             d (:d params)
+@@ -737,6 +739,7 @@ Note this should only be used for the last one in the sequence"
+ ;; TODO: refactor so that float-parts isn't called twice
+ (defn- general-float [params navigator offsets]
+   (let [[arg _] (next-arg navigator)
++        arg (if (instance? clojure.lang.Ratio arg) (double arg) arg)
+         [mantissa exp] (float-parts (if (neg? arg) (- arg) arg))
+         w (:w params)
+         d (:d params)
+diff --git a/test/clojure/test_clojure/pprint/test_cl_format.clj b/test/clojure/test_clojure/pprint/test_cl_format.clj
+index 8a95104..610c9ed 100644
+--- a/test/clojure/test_clojure/pprint/test_cl_format.clj
++++ b/test/clojure/test_clojure/pprint/test_cl_format.clj
+@@ -514,7 +514,10 @@
+           x x x x x x))
+ 
+ (simple-tests cltl-F-tests
++  (cl-format false "~10,3f" 4/5) "     0.800"
+   (foo 3.14159)  "  3.14| 31.42|  3.14|3.1416|3.14|3.14159" 
++  (foo 314159/100000)
++                 "  3.14| 31.42|  3.14|3.1416|3.14|3.14159" 
+   (foo -3.14159) " -3.14|-31.42| -3.14|-3.142|-3.14|-3.14159" 
+   (foo 100.0)    "100.00|******|100.00| 100.0|100.00|100.0" 
+   (foo 1234.0)   "1234.00|******|??????|1234.0|1234.00|1234.0" 
+@@ -527,7 +530,10 @@
+ 
+ ;; Clojure doesn't support float/double differences in representation
+ (simple-tests cltl-E-tests
++  (cl-format false "~10,3e" 4/5) "  8.000E-1"
+   (foo-e 0.0314159) "  3.14E-2| 31.42$-03|+.003E+01|  3.14E-2"  ; Added this one 
++  (foo-e 314159/10000000)
++                    "  3.14E-2| 31.42$-03|+.003E+01|  3.14E-2"
+   (foo-e 3.14159)  "  3.14E+0| 31.42$-01|+.003E+03|  3.14E+0" 
+   (foo-e -3.14159) " -3.14E+0|-31.42$-01|-.003E+03| -3.14E+0"
+   (foo-e 1100.0)   "  1.10E+3| 11.00$+02|+.001E+06|  1.10E+3" 
+@@ -565,7 +571,10 @@
+ 
+ ;; Clojure doesn't support float/double differences in representation
+ (simple-tests cltl-G-tests
++  (cl-format false "~10,3g" 4/5)  " 0.800    "
+   (foo-g 0.0314159) "  3.14E-2|314.2$-04|0.314E-01|  3.14E-2" 
++  (foo-g 314159/10000000)
++                    "  3.14E-2|314.2$-04|0.314E-01|  3.14E-2" 
+   (foo-g 0.314159)  "  0.31   |0.314    |0.314    | 0.31    " 
+   (foo-g 3.14159)   "   3.1   | 3.14    | 3.14    |  3.1    " 
+   (foo-g 31.4159)   "   31.   | 31.4    | 31.4    |  31.    " 
+-- 
+1.7.3.4
+

@@ -1,0 +1,50 @@
+From 05149290a80a33a466a61ab94c1fcdb87886916b Mon Sep 17 00:00:00 2001
+From: Stuart Sierra and Alex Redington <pair@thinkrelevance.com>
+Date: Fri, 17 Feb 2012 16:29:57 -0500
+Subject: [PATCH] CLJ-932: contains? should throw exception on non-associative argument
+
+---
+ src/jvm/clojure/lang/RT.java                  |    2 +-
+ test/clojure/test_clojure/data_structures.clj |   13 ++++---------
+ 2 files changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/RT.java b/src/jvm/clojure/lang/RT.java
+index 0c9cb55..e263c27 100644
+--- a/src/jvm/clojure/lang/RT.java
++++ b/src/jvm/clojure/lang/RT.java
+@@ -710,7 +710,7 @@ static public Object contains(Object coll, Object key){
+ 		int n = ((Number) key).intValue();
+ 		return n >= 0 && n < count(coll);
+ 	}
+-	return F;
++	throw new IllegalArgumentException("contains? not supported on type: " + coll.getClass().getName());
+ }
+ 
+ static public Object find(Object coll, Object key){
+diff --git a/test/clojure/test_clojure/data_structures.clj b/test/clojure/test_clojure/data_structures.clj
+index e3ecaa9..3ed2535 100644
+--- a/test/clojure/test_clojure/data_structures.clj
++++ b/test/clojure/test_clojure/data_structures.clj
+@@ -455,15 +455,10 @@
+       (contains? (into-array [1 2 3]) 3) false
+       (contains? (into-array [1 2 3]) -1) false)
+ 
+-  ; 'contains?' operates constant or logarithmic time,
+-  ; it WILL NOT perform a linear search for a value.
+-  (are [x]  (= x false)
+-      (contains? '(1 2 3) 0)
+-      (contains? '(1 2 3) 1)
+-      (contains? '(1 2 3) 3)
+-      (contains? '(1 2 3) 10)
+-      (contains? '(1 2 3) nil)
+-      (contains? '(1 2 3) ()) ))
++  ; 'contains?' will not operate on non-associative things
++  (are [x]  (is (thrown? Exception (contains? x 1)))
++       '(1 2 3)
++       3))
+ 
+ 
+ (deftest test-keys
+-- 
+1.7.4.1
+

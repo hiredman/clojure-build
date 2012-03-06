@@ -1,0 +1,28 @@
+From 4f0b299d2ae2e9346a47dda25dfc3ee74d00e65f Mon Sep 17 00:00:00 2001
+From: Hugo Duncan <hugo@hugoduncan.org>
+Date: Fri, 24 Feb 2012 13:00:23 -0500
+Subject: [PATCH] Report Exceptions thrown in load with file and line number
+
+Fixes #15
+---
+ src/jvm/clojure/lang/Compiler.java |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index d41624d..f7d624f 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -6907,6 +6907,10 @@ public static Object load(Reader rdr, String sourcePath, String sourceName) {
+ 		{
+ 		throw new CompilerException(sourcePath, e.line, e.getCause());
+ 		}
++	catch(Exception e)
++                {
++                  throw new CompilerException(sourcePath, (Integer)LINE_BEFORE.deref(), e);
++		}
+ 	finally
+ 		{
+ 		Var.popThreadBindings();
+-- 
+1.7.7.3
+

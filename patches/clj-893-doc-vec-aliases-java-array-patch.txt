@@ -1,0 +1,30 @@
+From b0316505395a2f0efbb4906e78396e54a996ca54 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Fri, 24 Feb 2012 18:30:17 -0800
+Subject: [PATCH] Document that vec can alias mutable collections passed to it.
+
+---
+ src/clj/clojure/core.clj |    7 ++++++-
+ 1 files changed, 6 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 1dc12c3..88faf83 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -338,7 +338,12 @@
+      (. clojure.lang.LazilyPersistentVector (create (cons a (cons b (cons c (cons d args))))))))
+ 
+ (defn vec
+-  "Creates a new vector containing the contents of coll."
++  "Creates a new vector containing the contents of coll.  If coll is
++   mutable, e.g. a Java array, the new vector and coll may share
++   memory, and modifying coll could modify the contents of the vector.
++   Either copy coll first (e.g. aclone for Java arrays), or never
++   modify coll again (e.g. it is a temporary used only for creating
++   the vector)."
+   {:added "1.0"
+    :static true}
+   ([coll]
+-- 
+1.7.3.4
+

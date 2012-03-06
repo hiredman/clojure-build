@@ -1,0 +1,68 @@
+From 6d00a521152fa8635d5b6a74277681b475b1095f Mon Sep 17 00:00:00 2001
+From: Vyacheslav Dimitrov <vyacheslav.dimitrov@gmail.com>
+Date: Sun, 12 Feb 2012 00:21:16 -0800
+Subject: [PATCH] Fix for bug CLJ-881.
+
+---
+ src/clj/clojure/pprint/cl_format.clj               |   22 +++++++++++++++----
+ .../clojure/test_clojure/pprint/test_cl_format.clj |    4 +++
+ 2 files changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/src/clj/clojure/pprint/cl_format.clj b/src/clj/clojure/pprint/cl_format.clj
+index ef5c981..74cd33b 100644
+--- a/src/clj/clojure/pprint/cl_format.clj
++++ b/src/clj/clojure/pprint/cl_format.clj
+@@ -564,6 +564,22 @@ Note this should only be used for the last one in the sequence"
+       ["0" 0]
+       [m2 (- (Integer/valueOf e) delta)])))
+ 
++(defn- ^String inc-s
++  "Assumption: The input string consists of one or more decimal digits,
++and no other characters.  Return a string containing one or more
++decimal digits containing a decimal number one larger than the input
++string.  The output string will always be the same length as the input
++string, or one character longer."
++  [^String s]
++  (let [len-1 (dec (count s))]
++    (loop [i (int len-1)]
++      (cond
++       (neg? i) (apply str "1" (repeat (inc len-1) "0"))
++       (= \9 (.charAt s i)) (recur (dec i))
++       :else (apply str (subs s 0 i)
++                    (char (inc (int (.charAt s i))))
++                    (repeat (- len-1 i) "0"))))))
++
+ (defn- round-str [m e d w]
+   (if (or d w)
+     (let [len (count m)
+@@ -582,11 +598,7 @@ Note this should only be used for the last one in the sequence"
+             (let [round-char (nth m1 round-pos)
+                   ^String result (subs m1 0 round-pos)]
+               (if (>= (int round-char) (int \5))
+-                (let [result-val (Integer/valueOf result)
+-                      leading-zeros (subs result 0 (min (prefix-count result \0) (- round-pos 1)))
+-                      round-up-result (str leading-zeros
+-                                           (String/valueOf (+ result-val 
+-                                                              (if (neg? result-val) -1 1))))
++                (let [round-up-result (inc-s result)
+                       expanded (> (count round-up-result) (count result))]
+                   [round-up-result e1 expanded])
+                 [result e1 false]))
+diff --git a/test/clojure/test_clojure/pprint/test_cl_format.clj b/test/clojure/test_clojure/pprint/test_cl_format.clj
+index 8a95104..eda2305 100644
+--- a/test/clojure/test_clojure/pprint/test_cl_format.clj
++++ b/test/clojure/test_clojure/pprint/test_cl_format.clj
+@@ -210,6 +210,10 @@
+   (cl-format nil "~3f" -1) "-1."
+   (cl-format nil "~4f" -1) "-1.0"
+   (cl-format nil "~8f" -1) "    -1.0"
++  (cl-format nil "~12,10f" 1.00000000074) "1.0000000007"
++  (cl-format nil "~12,10f" 1.00000000076) "1.0000000008"
++  (cl-format nil "~13,10f" -1.00000000074) "-1.0000000007"
++  (cl-format nil "~13,10f" -1.00000000076) "-1.0000000008"
+   (cl-format nil "~1,1f" 0.1) ".1")
+ 
+ (simple-tests ampersand-tests
+-- 
+1.7.7.4
+

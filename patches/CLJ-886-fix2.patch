@@ -1,0 +1,180 @@
+From 3fc4b111cfa23440f6a243848e1658f34da01cf4 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <jafinger@cisco.com>
+Date: Thu, 9 Feb 2012 18:07:34 -0800
+Subject: [PATCH] Fix for CLJ-886, along with test illustrating the problem
+
+Original reported problem was with do-copy method on arg types
+InputStream and Writer.  Changes to function data-fixture and test
+test-copy-encodings in clojure.java.io's test suite now cause the
+problem to occur, in the absence of this fix to do-copy.
+
+While fixing that one and adding tests, it was also discovered that
+do-copy with arg types Reader and OutputStream had a bug if the
+encoding was UTF-16, because Java's .getBytes returns a byte-order
+mark (Unicode code point U+FEFF) at the beginning of the byte array
+every time it is called.  Thus if the file being copied was larger
+than one buffer's worth of data, a new byte-order mark was written to
+the copy in between each buffer's worth.  With the correction, only a
+single byte-order mark is written at the beginning.
+
+Also enhanced the tests test-spit-and-slurp and test-input-stream to
+use non-ASCII characters.  No bugs were found as a result of these
+test enhancements.
+---
+ src/clj/clojure/java/io.clj           |   24 +++++++------
+ test/clojure/test_clojure/java/io.clj |   57 +++++++++++++++++++--------------
+ 2 files changed, 46 insertions(+), 35 deletions(-)
+
+diff --git a/src/clj/clojure/java/io.clj b/src/clj/clojure/java/io.clj
+index 306f084..20553df 100644
+--- a/src/clj/clojure/java/io.clj
++++ b/src/clj/clojure/java/io.clj
+@@ -302,26 +302,28 @@
+               (recur)))))))
+ 
+ (defmethod do-copy [InputStream Writer] [#^InputStream input #^Writer output opts]
+-  (let [#^"[B" buffer (make-array Byte/TYPE (buffer-size opts))]
++  (let [#^"[C" buffer (make-array Character/TYPE (buffer-size opts))
++        in (InputStreamReader. input (encoding opts))]
+     (loop []
+-      (let [size (.read input buffer)]
+-        (when (pos? size)
+-          (let [chars (.toCharArray (String. buffer 0 size (encoding opts)))]
+-            (do (.write output chars)
+-                (recur))))))))
++      (let [size (.read in buffer 0 (alength buffer))]
++        (if (pos? size)
++          (do (.write output buffer 0 size)
++              (recur)))))))
+ 
+ (defmethod do-copy [InputStream File] [#^InputStream input #^File output opts]
+   (with-open [out (FileOutputStream. output)]
+     (do-copy input out opts)))
+ 
+ (defmethod do-copy [Reader OutputStream] [#^Reader input #^OutputStream output opts]
+-  (let [#^"[C" buffer (make-array Character/TYPE (buffer-size opts))]
++  (let [#^"[C" buffer (make-array Character/TYPE (buffer-size opts))
++        out (OutputStreamWriter. output (encoding opts))]
+     (loop []
+       (let [size (.read input buffer)]
+-        (when (pos? size)
+-          (let [bytes (.getBytes (String. buffer 0 size) (encoding opts))]
+-            (do (.write output bytes)
+-                (recur))))))))
++        (if (pos? size)
++          (do
++            (.write out buffer 0 size)
++            (recur))
++          (.flush out))))))
+ 
+ (defmethod do-copy [Reader Writer] [#^Reader input #^Writer output opts]
+   (let [#^"[C" buffer (make-array Character/TYPE (buffer-size opts))]
+diff --git a/test/clojure/test_clojure/java/io.clj b/test/clojure/test_clojure/java/io.clj
+index cdc50ee..e2368e6 100644
+--- a/test/clojure/test_clojure/java/io.clj
++++ b/test/clojure/test_clojure/java/io.clj
+@@ -21,17 +21,20 @@
+     (.deleteOnExit)))
+ 
+ (deftest test-spit-and-slurp
+-  (let [f (temp-file "clojure.java.io" "test")]
+-    (spit f "foobar")
+-    (is (= "foobar" (slurp f)))
+-    (spit f "foobar" :encoding "UTF-16")
+-    (is (= "foobar" (slurp f :encoding "UTF-16")))
++  (let [f (temp-file "clojure.java.io" "test")
++        content (apply str (concat "a" (repeat 500 "\u226a\ud83d\ude03")))]
++    (spit f content)
++    (is (= content (slurp f)))
++    ;; UTF-16 must be last for the following test
++    (doseq [enc [ "UTF-8" "UTF-16BE" "UTF-16LE" "UTF-32" "UTF-16" ]]
++      (spit f content :encoding enc)
++      (is (= content (slurp f :encoding enc))))
+     (testing "deprecated arity"
+       (is (=
+            (platform-newlines "WARNING: (slurp f enc) is deprecated, use (slurp f :encoding enc).\n")
+            (with-out-str
+-             (is (= "foobar" (slurp f "UTF-16")))))))))
+-  
++             (is (= content (slurp f "UTF-16")))))))))
++
+ (deftest test-streams-defaults
+   (let [f (temp-file "clojure.java.io" "test-reader-writer")
+         content "testing"]
+@@ -63,17 +66,21 @@
+ (defn data-fixture
+   "in memory fixture data for tests"
+   [encoding]
+-  (let [bs (.getBytes "hello" encoding)
+-        cs (.toCharArray "hello")
++  (let [s (apply str (concat "a" (repeat 500 "\u226a\ud83d\ude03")))
++        bs (.getBytes s encoding)
++        cs (.toCharArray s)
+         i (ByteArrayInputStream. bs)
+-        r (InputStreamReader. i)
++        ;; Make UTF-8 encoding explicit for the InputStreamReader and
++        ;; OutputStreamWriter, since some JVMs use a different default
++        ;; encoding.
++        r (InputStreamReader. i "UTF-8")
+         o (ByteArrayOutputStream.)
+-        w (OutputStreamWriter. o)]
++        w (OutputStreamWriter. o "UTF-8")]
+     {:bs bs
+      :i i
+      :r r
+      :o o
+-     :s "hello"
++     :s s
+      :cs cs
+      :w w}))
+ 
+@@ -90,7 +97,7 @@
+           {:in :bs :out :w}]
+          
+          opts
+-         [{} {:buffer-size 256}]]
++         [{} {:buffer-size 16} {:buffer-size 256}]]
+      (let [{:keys [s o] :as d} (data-fixture "UTF-8")]
+        (apply copy (in d) (out d) (flatten (vec opts)))
+        #_(when (= out :w) (.flush (:w d)))
+@@ -100,15 +107,16 @@
+                            (str "combination " test opts))))))
+ 
+ (deftest test-copy-encodings
+-  (testing "from inputstream UTF-16 to writer UTF-8"
+-    (let [{:keys [i s o w bs]} (data-fixture "UTF-16")]
+-      (copy i w :encoding "UTF-16")
+-      (.flush w)
+-      (bytes-should-equal (.getBytes s "UTF-8") (.toByteArray o) "")))
+-  (testing "from reader UTF-8 to output-stream UTF-16"
+-    (let [{:keys [r o s]} (data-fixture "UTF-8")]
+-      (copy r o :encoding "UTF-16")
+-      (bytes-should-equal (.getBytes s "UTF-16") (.toByteArray o) ""))))
++  (doseq [enc [ "UTF-8" "UTF-16" "UTF-16BE" "UTF-16LE" "UTF-32" ]]
++    (testing (str "from inputstream " enc " to writer UTF-8")
++      (let [{:keys [i s o w bs]} (data-fixture enc)]
++        (copy i w :encoding enc :buffer-size 16)
++        (.flush w)
++        (bytes-should-equal (.getBytes s "UTF-8") (.toByteArray o) "")))
++    (testing (str "from reader UTF-8 to output-stream " enc)
++      (let [{:keys [r o s]} (data-fixture "UTF-8")]
++        (copy r o :encoding enc :buffer-size 16)
++        (bytes-should-equal (.getBytes s enc) (.toByteArray o) "")))))
+ 
+ (deftest test-as-file
+   (are [result input] (= result (as-file input))
+@@ -167,8 +175,9 @@
+ 
+ (deftest test-input-stream
+   (let [file (temp-file "test-input-stream" "txt")
+-        bytes (.getBytes "foobar")]
+-    (spit file "foobar")
++        content (apply str (concat "a" (repeat 500 "\u226a\ud83d\ude03")))
++        bytes (.getBytes content "UTF-8")]
++    (spit file content)
+     (doseq [[expr msg]
+             [[file File]
+              [(FileInputStream. file) FileInputStream]
+-- 
+1.7.7.4
+
