@@ -18,7 +18,7 @@ git reset --hard $CLOJURE_SHA
 
 for i in `cat ../patches/patch-order.txt`; do
     echo "    applying" $i
-    git am -s < ../patches/$i
+    git am --keep-cr -s < ../patches/$i
 done
 
 MAVEN_OPTS="-Djava.awt.headless=true"
