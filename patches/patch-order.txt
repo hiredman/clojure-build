@@ -31,3 +31,6 @@ clj-902-doc-on-namespaces-patch.txt
 clj-923-reading-ratios-prefixed-by-plus-patch.txt
 fix-trim-fns-different-whitespace-patch.txt
 stm-rm-msecs-patch.diff
+clj-852-patch2-updated.txt
+clj-924-unicode-invalid-digit-patch2-updated.txt
+transient-disj-patch1-updated.txt

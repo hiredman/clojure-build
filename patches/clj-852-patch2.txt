@@ -1,0 +1,105 @@
+From 6ffce2962c273216e16f7edd8f7bb5c592ae274a Mon Sep 17 00:00:00 2001
+From: Ben Smith-Mannschott <bsmith.occs@gmail.com>
+Date: Sat, 15 Oct 2011 17:08:13 +0200
+Subject: [PATCH 1/2] CLJ-852: add regression test
+
+---
+ test/clojure/test_clojure/metadata.clj |   12 +++++++++++-
+ 1 files changed, 11 insertions(+), 1 deletions(-)
+
+diff --git a/test/clojure/test_clojure/metadata.clj b/test/clojure/test_clojure/metadata.clj
+index 7719f06..6bd9bbb 100644
+--- a/test/clojure/test_clojure/metadata.clj
++++ b/test/clojure/test_clojure/metadata.clj
+@@ -74,4 +74,14 @@
+                  (def quux 1))
+                (def-quux)
+                #'quux)]
+-        (is (nil? (-> v meta :e)))))))
++        (is (nil? (-> v meta :e))))))
++  (testing "IllegalArgumentException should not be thrown"
++    (testing "when defining var whose value is calculated with a primitive fn."
++      (testing "This case fails without a fix for CLJ-852"
++        (is (eval-in-temp-ns
++             (defn foo ^long [^long x] x)
++             (def x (inc (foo 10))))))
++      (testing "This case should pass even without a fix for CLJ-852"
++        (is (eval-in-temp-ns
++             (defn foo ^long [^long x] x)
++             (def x (foo (inc 10)))))))))
+-- 
+1.7.7
+
+
+From e64f067be7e3b3fb75c2ca1baaf3336edb25588e Mon Sep 17 00:00:00 2001
+From: Ben Smith-Mannschott <bsmith.occs@gmail.com>
+Date: Sat, 15 Oct 2011 21:55:52 +0200
+Subject: [PATCH 2/2] CLJ-852: add special cases for "int" ... "boolean" to tagToClass()
+
+This causes the test to pass.
+---
+ src/jvm/clojure/lang/Compiler.java |   41 +++++++++++++++++++++++++----------
+ 1 files changed, 29 insertions(+), 12 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index bfc8274..d71c76e 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -942,7 +942,8 @@ static public abstract class HostExpr implements Expr, MaybePrimitiveExpr{
+ 						c = RT.classForName(sym.name);
+ 						}
+ 						catch(Exception e){
+-							//aargh
++							// aargh
++							// leave c set to null -> return null
+ 						}
+ 						}
+ 					}
+@@ -989,17 +990,33 @@ static public abstract class HostExpr implements Expr, MaybePrimitiveExpr{
+ 				else if(sym.name.equals("longs"))
+ 					c = long[].class;
+ 				else if(sym.name.equals("floats"))
+-						c = float[].class;
+-					else if(sym.name.equals("doubles"))
+-							c = double[].class;
+-						else if(sym.name.equals("chars"))
+-								c = char[].class;
+-							else if(sym.name.equals("shorts"))
+-									c = short[].class;
+-								else if(sym.name.equals("bytes"))
+-										c = byte[].class;
+-									else if(sym.name.equals("booleans"))
+-											c = boolean[].class;
++					c = float[].class;
++				else if(sym.name.equals("doubles"))
++					c = double[].class;
++				else if(sym.name.equals("chars"))
++					c = char[].class;
++				else if(sym.name.equals("shorts"))
++					c = short[].class;
++				else if(sym.name.equals("bytes"))
++					c = byte[].class;
++				else if(sym.name.equals("booleans"))
++					c = boolean[].class;
++				else if(sym.name.equals("int"))
++					c = Integer.TYPE;
++				else if(sym.name.equals("long"))
++					c = Long.TYPE;
++				else if(sym.name.equals("float"))
++					c = Float.TYPE;
++				else if(sym.name.equals("double"))
++					c = Double.TYPE;
++				else if(sym.name.equals("char"))
++					c = Character.TYPE;
++				else if(sym.name.equals("short"))
++					c = Short.TYPE;
++				else if(sym.name.equals("byte"))
++					c = Byte.TYPE;
++				else if(sym.name.equals("boolean"))
++					c = Boolean.TYPE;
+ 				}
+ 			}
+ 		if(c != null)
+-- 
+1.7.7
+

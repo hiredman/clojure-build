@@ -1,0 +1,40 @@
+From a7a2c41a8f2d8e7b9c14f1ecce846acf881f1314 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Tue, 21 Feb 2012 00:08:10 -0800
+Subject: [PATCH] Correct disj! so it can remove multiple items
+
+---
+ src/clj/clojure/core.clj                 |    2 +-
+ test/clojure/test_clojure/transients.clj |    4 ++++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 984f37c..53608e4 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -3006,7 +3006,7 @@
+   ([^clojure.lang.ITransientSet set key]
+    (. set (disjoin key)))
+   ([set key & ks]
+-   (let [ret (disj set key)]
++   (let [ret (. set (disjoin key))]
+      (if ks
+        (recur ret (first ks) (next ks))
+        ret))))
+diff --git a/test/clojure/test_clojure/transients.clj b/test/clojure/test_clojure/transients.clj
+index aa0b871..721dcf2 100644
+--- a/test/clojure/test_clojure/transients.clj
++++ b/test/clojure/test_clojure/transients.clj
+@@ -25,5 +25,9 @@
+                         dm (persistent! (reduce dissoc! (transient m) (keys m)))]
+                     [(count dm) dm])))))
+ 
++(deftest test-disj!
++  (testing "disjoin multiple items in one call"
++    (is (= #{5 20} (-> #{5 10 15 20} transient (disj! 10 15) persistent!)))))
++
+ (deftest empty-transient
+   (is (= false (.contains (transient #{}) :bogus-key))))
+-- 
+1.7.9.2
+
