@@ -7,7 +7,7 @@
 0001-make-interleave-handle-odd-arugments-in-the-same-man.patch
 0002-Preserve-form-metadata-on-macroexpanded-forms.patch
 0002-report-load-exceptions-with-file-and-line.diff
-0010-Add-docstring-to-definterface.patch
+0001-Add-docstring-and-added-metadata-to-definterface.patch
 CLJ-753-870-905-combined-fix3.patch
 CLJ-881-patch-from-dimitrov.txt
 CLJ-768-patch-for-after-CLJ-881-fixed.patch
