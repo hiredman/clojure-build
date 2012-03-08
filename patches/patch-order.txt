@@ -37,3 +37,4 @@ transient-disj-patch1-updated.txt
 clj-700-patch2-updated.txt
 clj-157-better-err-msgs-for-defn-fn-syntax-errors-patch2.txt
 clj-788-add-line-member-and-getter-to-CompilerException-patch.txt
+clj-818-resolve-doc-string-patch.txt
