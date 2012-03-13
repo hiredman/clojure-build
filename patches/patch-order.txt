@@ -13,7 +13,6 @@ CLJ-881-patch-from-dimitrov.txt
 CLJ-768-patch-for-after-CLJ-881-fixed.patch
 CLJ-886-fix2.patch
 CLJ-932-0001.patch
-add-enable-locals-clearing-updated.diff
 capitalize-for-supplementary-chars-patch.txt
 cl-format-efg-coerce-ratios-to-doubes-patch1.txt
 clj-103-incorrect-if-let-error-patch2.txt
