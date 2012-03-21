@@ -1,0 +1,25 @@
+From 90a2bbbc2bdf0ce78102f49a863171525f6613ff Mon Sep 17 00:00:00 2001
+From: Eric Schoonover <erics@capdes.com>
+Date: Thu, 15 Mar 2012 14:52:34 -0700
+Subject: [PATCH] fix drop-while doc string, ref: CLJ-953
+
+---
+ src/clj/clojure/core.clj |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9cf45e6..02c5933 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -2544,7 +2544,7 @@
+ 
+ (defn drop-while
+   "Returns a lazy sequence of the items in coll starting from the first
+-  item for which (pred item) returns nil."
++  item for which (pred item) returns logical false."
+   {:added "1.0"
+    :static true}
+   [pred coll]
+-- 
+1.7.5.4
+

@@ -37,3 +37,5 @@ clj-700-patch2-updated.txt
 clj-157-better-err-msgs-for-defn-fn-syntax-errors-patch2.txt
 clj-788-add-line-member-and-getter-to-CompilerException-patch.txt
 clj-818-resolve-doc-string-patch.txt
+clj-952-make-bigdec-work-on-bigints-patch1.txt
+take-while_doc_string_CLJ-953.diff
