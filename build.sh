@@ -2,7 +2,7 @@
 
 set -e
 
-CLOJURE_SHA="14428c296de483ea666bd874701046e7088e545c"
+CLOJURE_SHA="ba3fa7537da5c896d5d31be7ac22ab7f3e9c9a23"
 
 [ ! -e clojure ] && git clone http://github.com/clojure/clojure
 

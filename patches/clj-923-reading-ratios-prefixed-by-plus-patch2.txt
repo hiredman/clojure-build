@@ -1,4 +1,4 @@
-From 2f1158afd7a3e27f3862f2c0820963d37283b1b1 Mon Sep 17 00:00:00 2001
+From 873cd29d6b95707b8571754b1b5007b4405f6d90 Mon Sep 17 00:00:00 2001
 From: Cosmin Stejerean <cosmin@offbytwo.com>
 Date: Sat, 4 Feb 2012 11:24:57 +1100
 Subject: [PATCH] fixed reading of ratios prefixed by + and added tests
@@ -9,10 +9,10 @@ Subject: [PATCH] fixed reading of ratios prefixed by + and added tests
  2 files changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/src/jvm/clojure/lang/LispReader.java b/src/jvm/clojure/lang/LispReader.java
-index b0eb8b8..cfd57c8 100644
+index c8aa974..7476923 100644
 --- a/src/jvm/clojure/lang/LispReader.java
 +++ b/src/jvm/clojure/lang/LispReader.java
-@@ -399,7 +399,10 @@ private static Object matchNumber(String s){
+@@ -391,7 +391,10 @@ private static Object matchNumber(String s){
  	m = ratioPat.matcher(s);
  	if(m.matches())
  		{
@@ -25,7 +25,7 @@ index b0eb8b8..cfd57c8 100644
  		}
  	return null;
 diff --git a/test/clojure/test_clojure/reader.clj b/test/clojure/test_clojure/reader.clj
-index be6d237..648db25 100644
+index 876e8a1..c5ea89e 100644
 --- a/test/clojure/test_clojure/reader.clj
 +++ b/test/clojure/test_clojure/reader.clj
 @@ -21,7 +21,7 @@
@@ -34,10 +34,10 @@ index be6d237..648db25 100644
                                  read-instant-timestamp]])
 -  (:import clojure.lang.BigInt
 +  (:import [clojure.lang BigInt Ratio]
+            java.io.File
             java.util.TimeZone))
  
- ;; Symbols
-@@ -211,6 +211,10 @@
+@@ -273,6 +273,10 @@
  
    (is (instance? BigDecimal -1.0M))
    (is (instance? BigDecimal -1.M))
@@ -49,5 +49,5 @@ index be6d237..648db25 100644
  
  ;; Characters
 -- 
-1.7.3.4
+1.7.9.2
 

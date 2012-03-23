@@ -1,4 +1,4 @@
-From d113e9a0820843ed7f837af8ebfa61267ccd35b9 Mon Sep 17 00:00:00 2001
+From 0005371b42037c1c2dc9a1e2cd3e862cfba3f59f Mon Sep 17 00:00:00 2001
 From: Ben Smith-Mannschott <bsmith.occs@gmail.com>
 Date: Tue, 18 Oct 2011 21:51:13 +0200
 Subject: [PATCH] CLJ-850: Be sure invokePrim returning subclass of of Object properly implements Fn$XX
@@ -23,10 +23,10 @@ satisfy the interface. This also delegates to `R invokePrim(P x)`.
  2 files changed, 40 insertions(+), 3 deletions(-)
 
 diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
-index bfc8274..e855e1e 100644
+index a32b98e..ccd91d7 100644
 --- a/src/jvm/clojure/lang/Compiler.java
 +++ b/src/jvm/clojure/lang/Compiler.java
-@@ -5089,8 +5089,22 @@ public static class FnMethod extends ObjMethod{
+@@ -5131,8 +5131,22 @@ public static class FnMethod extends ObjMethod{
  
  	}
  
@@ -50,7 +50,7 @@ index bfc8274..e855e1e 100644
  
  		GeneratorAdapter gen = new GeneratorAdapter(ACC_PUBLIC + ACC_FINAL,
  		                                            ms,
-@@ -5127,10 +5141,12 @@ public static class FnMethod extends ObjMethod{
+@@ -5169,10 +5183,12 @@ public static class FnMethod extends ObjMethod{
  		gen.returnValue();
  		//gen.visitMaxs(1, 1);
  		gen.endMethod();
@@ -66,13 +66,13 @@ index bfc8274..e855e1e 100644
  		                           m,
  		                           null,
 diff --git a/test/clojure/test_clojure/metadata.clj b/test/clojure/test_clojure/metadata.clj
-index 7719f06..254f96b 100644
+index c993045..e746767 100644
 --- a/test/clojure/test_clojure/metadata.clj
 +++ b/test/clojure/test_clojure/metadata.clj
-@@ -75,3 +75,24 @@
-                (def-quux)
-                #'quux)]
-         (is (nil? (-> v meta :e)))))))
+@@ -88,3 +88,24 @@
+         (is (eval-in-temp-ns
+              (defn foo ^long [^long x] x)
+              (def x (foo (inc 10)))))))))
 +
 +(deftest defn-primitive-args
 +  (testing "Hinting the arg vector of a primitive-taking fn with a non-primitive type should not result in AbstractMethodError when invoked."
@@ -95,5 +95,5 @@ index 7719f06..254f96b 100644
 +              (defn f ^long [^long i] i)
 +              (f 1)))))))
 -- 
-1.7.3.4
+1.7.9.2
 
