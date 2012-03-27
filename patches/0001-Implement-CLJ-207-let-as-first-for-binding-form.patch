@@ -1,0 +1,48 @@
+From 67bb2c4acffd6092b78ed0164e33ddc7c15dd78c Mon Sep 17 00:00:00 2001
+From: Tassilo Horn <tassilo@member.fsf.org>
+Date: Thu, 22 Mar 2012 17:15:13 +0100
+Subject: [PATCH] Implement CLJ-207: :let as first for binding form.
+
+---
+ src/clj/clojure/core.clj          |    7 +++++++
+ test/clojure/test_clojure/for.clj |    6 ++++++
+ 2 files changed, 13 insertions(+), 0 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9cf45e6..cecbee0 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -4096,6 +4096,13 @@
+                                 (conj (pop groups) (conj (peek groups) [k v]))
+                                 (conj groups [k v])))
+                             [] (partition 2 seq-exprs)))
++        ;; Special case :let as first item: Transform [:let [a x, b y] more] to
++        ;; [a [x], b [y] more].
++        seq-exprs (if (= :let (first seq-exprs))
++                    (vec (concat (mapcat (fn [[lv le]] [lv [le]])
++                                         (partition 2 (second seq-exprs)))
++                                 (next (next seq-exprs))))
++                    seq-exprs)
+         err (fn [& msg] (throw (IllegalArgumentException. ^String (apply str msg))))
+         emit-bind (fn emit-bind [[[bind expr & mod-pairs]
+                                   & [[_ next-expr] :as next-groups]]]
+diff --git a/test/clojure/test_clojure/for.clj b/test/clojure/test_clojure/for.clj
+index 6d9dc59..291ad31 100644
+--- a/test/clojure/test_clojure/for.clj
++++ b/test/clojure/test_clojure/for.clj
+@@ -122,6 +122,12 @@
+   (is (= (for [x (range 6) :let [y (rem x 2)] :when (even? y) z [8 9]] [x z])
+          '([0 8] [0 9] [2 8] [2 9] [4 8] [4 9]))))
+ 
++(deftest-both Let-in-Front-Position
++  (is (= (for [:let [a 1, b 2], c [3 4]] [a b c])
++         '([1 2 3] [1 2 4])))
++  (is (= (for [:let [a [1 2]], b [3 4 5]] (conj a b))
++         '([1 2 3] [1 2 4] [1 2 5]))))
++
+ ; :while must skip all subsequent chunks as well as the remainder of
+ ; the current chunk:
+ (deftest-both Chunked-While
+-- 
+1.7.8.5
+

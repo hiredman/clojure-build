@@ -1,13 +1,13 @@
-From f0ee736d5ff0fe7eba08df1d5352204d009d2f9e Mon Sep 17 00:00:00 2001
+From 6b2bcdd022fc13faaab7d75223bbd5a4082db7de Mon Sep 17 00:00:00 2001
 From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
-Date: Mon, 13 Feb 2012 19:42:35 -0800
-Subject: [PATCH] Fixes for CLJ-768 and other problems found with cl-format ~f
- directive
+Date: Tue, 27 Mar 2012 08:56:23 -0700
+Subject: [PATCH 12/12] Fixes for CLJ-768 and other problems found with
+ cl-format ~f directive
 
 Without the changes to cl_format.clj, 46 of the 72 new unit tests
 added to test_cl_format.clj fail.
 ---
- src/clj/clojure/pprint/cl_format.clj               |   41 +++++++++--
+ src/clj/clojure/pprint/cl_format.clj               |   41 ++++++++---
  .../clojure/test_clojure/pprint/test_cl_format.clj |   72 ++++++++++++++++++++
  2 files changed, 105 insertions(+), 8 deletions(-)
 
@@ -85,7 +85,7 @@ index 74cd33b..246b65d 100644
      (if w
        (let [len (count fixed-repr)
 diff --git a/test/clojure/test_clojure/pprint/test_cl_format.clj b/test/clojure/test_clojure/pprint/test_cl_format.clj
-index eda2305..990d3d5 100644
+index 62fa685..b754cb0 100644
 --- a/test/clojure/test_clojure/pprint/test_cl_format.clj
 +++ b/test/clojure/test_clojure/pprint/test_cl_format.clj
 @@ -205,11 +205,83 @@
@@ -169,9 +169,9 @@ index eda2305..990d3d5 100644
 +  (cl-format nil "~6,2f" -111.11111) "-111.11"
 +  (cl-format nil "~6,3f" -111.11111) "-111.111"
 +  (cl-format nil "~8,5f" -111.11111) "-111.11111"
-   (cl-format nil "~12,10f" 1.00000000074) "1.0000000007"
-   (cl-format nil "~12,10f" 1.00000000076) "1.0000000008"
-   (cl-format nil "~13,10f" -1.00000000074) "-1.0000000007"
+   (cl-format nil "~12,10f" 1.23456789014) "1.2345678901"
+   (cl-format nil "~12,10f" 1.23456789016) "1.2345678902"
+   (cl-format nil "~13,10f" -1.23456789014) "-1.2345678901"
 -- 
-1.7.7.4
+1.7.9.2
 

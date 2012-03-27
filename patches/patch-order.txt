@@ -8,8 +8,8 @@
 0002-report-load-exceptions-with-file-and-line.diff
 0001-Add-docstring-and-added-metadata-to-definterface.patch
 CLJ-753-870-905-combined-fix3.patch
-CLJ-881-patch-from-dimitrov.txt
-CLJ-768-patch-for-after-CLJ-881-fixed.patch
+clj-881-cl-format-exception-patch2.txt
+clj-768-patch-for-after-clj-881-fixed-patch2.txt
 CLJ-932-0001.patch
 capitalize-for-supplementary-chars-patch.txt
 cl-format-efg-coerce-ratios-to-doubes-patch1.txt
@@ -21,7 +21,7 @@ clj-831-await-for-doc-string-patch.txt
 clj-833-defrecord-factory-docstrings-3.patch
 clj-850-type-hinted-fn-abstractmethoderror-patch3.txt
 clj-873-namespace-divides-patch.txt
-clj-893-doc-vec-aliases-java-array-patch.txt
+clj-893-doc-vec-aliases-java-array-patch2.txt
 clj-894-better-reduce-performance-patch2.txt
 clj-896-browse-url-uses-xdg-open-patch2.txt
 clj-902-doc-on-namespaces-patch.txt
@@ -32,6 +32,10 @@ transient-disj-patch1-updated.txt
 clj-700-patch2-updated.txt
 clj-157-better-err-msgs-for-defn-fn-syntax-errors-patch2.txt
 clj-788-add-line-member-and-getter-to-CompilerException-patch.txt
-clj-818-resolve-doc-string-patch.txt
 clj-952-make-bigdec-work-on-bigints-patch1.txt
 take-while_doc_string_CLJ-953.diff
+clj-925-patch.diff
+clj-892-clarify-sort-sort-by-doc-strings-patch1.txt
+0001-Print-metadata-and-anonymous-classes-better.patch
+0001-Implement-CLJ-207-let-as-first-for-binding-form.patch
+clj-763-destructuring-allow-dup-keys-patch2.txt

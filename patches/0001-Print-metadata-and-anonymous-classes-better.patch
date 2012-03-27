@@ -1,0 +1,32 @@
+From 20dc6c25d014813da3f6662acceca26465fbe02e Mon Sep 17 00:00:00 2001
+From: Alan Malloy <alan@malloys.org>
+Date: Tue, 10 Jan 2012 15:15:26 -0800
+Subject: [PATCH] Print metadata and anonymous classes better
+
+---
+ src/clj/clojure/core_print.clj |    8 ++++++--
+ 1 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/clj/clojure/core_print.clj b/src/clj/clojure/core_print.clj
+index 641c707..31efd35 100644
+--- a/src/clj/clojure/core_print.clj
++++ b/src/clj/clojure/core_print.clj
+@@ -88,9 +88,13 @@
+   (.write w ")"))
+ 
+ (defmethod print-method Object [o, ^Writer w]
++  (when (instance? clojure.lang.IMeta o)
++    (print-meta o w))
+   (.write w "#<")
+-  (.write w (.getSimpleName (class o)))
+-  (.write w " ")
++  (let [name (.getSimpleName (class o))]
++    (when (seq name) ;; anonymous classes have a simple name of ""
++      (.write w name)
++      (.write w " ")))
+   (.write w (str o))
+   (.write w ">"))
+ 
+-- 
+1.7.4.1
+
