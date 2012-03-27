@@ -1,0 +1,41 @@
+From 02c096f6ecf6a02120cd82214a4162a1da178731 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Mon, 26 Mar 2012 15:29:04 -0700
+Subject: [PATCH] Clarify doc strings of sort and sort-by: they will modify
+ Java array arguments
+
+---
+ src/clj/clojure/core.clj |   10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9cf45e6..d27c3dd 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -2688,8 +2688,9 @@
+ 
+ (defn sort
+   "Returns a sorted sequence of the items in coll. If no comparator is
+-  supplied, uses compare. comparator must
+-  implement java.util.Comparator."
++  supplied, uses compare.  comparator must implement
++  java.util.Comparator.  If coll is a Java array, it will be modified.
++  To avoid this, sort a copy of the array."
+   {:added "1.0"
+    :static true}
+   ([coll]
+@@ -2704,8 +2705,9 @@
+ (defn sort-by
+   "Returns a sorted sequence of the items in coll, where the sort
+   order is determined by comparing (keyfn item).  If no comparator is
+-  supplied, uses compare. comparator must
+-  implement java.util.Comparator."
++  supplied, uses compare.  comparator must implement
++  java.util.Comparator.  If coll is a Java array, it will be modified.
++  To avoid this, sort a copy of the array."
+   {:added "1.0"
+    :static true}
+   ([keyfn coll]
+-- 
+1.7.9.2
+

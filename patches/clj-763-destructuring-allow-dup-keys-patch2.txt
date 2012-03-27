@@ -1,0 +1,51 @@
+From 2e91b67d18972e34653980c477cea1bafa54c8e7 Mon Sep 17 00:00:00 2001
+From: Meikel Brandmeyer <mb@kotka.de>
+Date: Mon, 26 Mar 2012 16:38:33 -0700
+Subject: [PATCH] Avoid duplicate key check in destructuring
+
+---
+ src/clj/clojure/core.clj              |    2 +-
+ test/clojure/test_clojure/special.clj |   10 ++++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9cf45e6..8877df2 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -3927,7 +3927,7 @@
+                        (let [gmap (or (:as b) (gensym "map__"))
+                              defaults (:or b)]
+                          (loop [ret (-> bvec (conj gmap) (conj v)
+-                                        (conj gmap) (conj `(if (seq? ~gmap) (apply hash-map ~gmap) ~gmap)))
++                                        (conj gmap) (conj `(if (seq? ~gmap) (#'clojure.core/into1 {} (map vec (partition 2 ~gmap))) ~gmap)))
+                                 bes (reduce1
+                                      (fn [bes entry]
+                                        (reduce1 #(assoc %1 %2 ((val entry) %2))
+diff --git a/test/clojure/test_clojure/special.clj b/test/clojure/test_clojure/special.clj
+index f3a8164..5e38863 100644
+--- a/test/clojure/test_clojure/special.clj
++++ b/test/clojure/test_clojure/special.clj
+@@ -13,6 +13,7 @@
+ ;;
+ 
+ (ns clojure.test-clojure.special
++  (:import [java.util Locale])
+   (:use clojure.test))
+ 
+ ; http://clojure.org/special_forms
+@@ -22,3 +23,12 @@
+ ; var
+ ; fn
+ 
++(deftest test-multiple-identical-keys-in-destructuring
++  (is (= " 3.14"
++         (let [number-to-string (fn [& {fmt :format locale :locale}]
++                                  (fn [v]
++                                    (String/format locale fmt (to-array [v]))))
++               double-to-string (fn [& options]
++                                  (apply number-to-string :format "%f" options))
++               us-number (double-to-string :format "% 3.2f" :locale Locale/US)]
++           (us-number 3.14159)))))
+-- 
+1.7.9.2
+

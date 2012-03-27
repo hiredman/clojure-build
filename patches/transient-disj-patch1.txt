@@ -1,0 +1,41 @@
+From 2b0c260d2b8feef399b08e79c948505195da1882 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Tue, 21 Feb 2012 00:08:10 -0800
+Subject: [PATCH] Correct disj! so it can remove multiple items
+
+---
+ src/clj/clojure/core.clj                 |    2 +-
+ test/clojure/test_clojure/transients.clj |    6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 1dc12c3..951238f 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -2994,7 +2994,7 @@
+   ([^clojure.lang.ITransientSet set key]
+    (. set (disjoin key)))
+   ([set key & ks]
+-   (let [ret (disj set key)]
++   (let [ret (. set (disjoin key))]
+      (if ks
+        (recur ret (first ks) (next ks))
+        ret))))
+diff --git a/test/clojure/test_clojure/transients.clj b/test/clojure/test_clojure/transients.clj
+index 1545c10..9bb9214 100644
+--- a/test/clojure/test_clojure/transients.clj
++++ b/test/clojure/test_clojure/transients.clj
+@@ -23,4 +23,8 @@
+     (is (= [0 {}] (let [ks (concat (range 7) [(hash-obj 42) (hash-obj 42)])
+                         m (zipmap ks ks)
+                         dm (persistent! (reduce dissoc! (transient m) (keys m)))]
+-                    [(count dm) dm])))))
+\ No newline at end of file
++                    [(count dm) dm])))))
++
++(deftest test-disj!
++  (testing "disjoin multiple items in one call"
++    (is (= #{5 20} (-> #{5 10 15 20} transient (disj! 10 15) persistent!)))))
+-- 
+1.7.3.4
+

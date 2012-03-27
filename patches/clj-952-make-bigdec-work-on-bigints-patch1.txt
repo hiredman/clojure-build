@@ -1,0 +1,67 @@
+From af964ec879da89f699ab76700ebb9a9d91a41957 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Wed, 21 Mar 2012 08:49:30 -0700
+Subject: [PATCH] Make bigdec work on clojure.lang.BigInt args
+
+---
+ src/clj/clojure/core.clj              |    3 ++-
+ src/jvm/clojure/lang/BigInt.java      |    8 ++++++++
+ test/clojure/test_clojure/numbers.clj |    2 +-
+ 3 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9cf45e6..74fcbc3 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -3245,7 +3245,8 @@
+   [x] (cond
+        (decimal? x) x
+        (float? x) (. BigDecimal valueOf (double x))
+-       (ratio? x) (/ (BigDecimal. (.numerator x)) (.denominator x))
++       (ratio? x) (/ (BigDecimal. (.numerator ^clojure.lang.Ratio x)) (.denominator ^clojure.lang.Ratio x))
++       (instance? clojure.lang.BigInt x) (.toBigDecimal ^clojure.lang.BigInt x)
+        (instance? BigInteger x) (BigDecimal. ^BigInteger x)
+        (number? x) (BigDecimal/valueOf (long x))
+        :else (BigDecimal. x)))
+diff --git a/src/jvm/clojure/lang/BigInt.java b/src/jvm/clojure/lang/BigInt.java
+index aa82b7b..88e5493 100644
+--- a/src/jvm/clojure/lang/BigInt.java
++++ b/src/jvm/clojure/lang/BigInt.java
+@@ -13,6 +13,7 @@
+ package clojure.lang;
+ 
+ import java.math.BigInteger;
++import java.math.BigDecimal;
+ 
+ public final class BigInt extends Number{
+ 
+@@ -66,6 +67,13 @@ public BigInteger toBigInteger(){
+ 		return bipart;
+ }
+ 
++public BigDecimal toBigDecimal(){
++	if(bipart == null)
++		return BigDecimal.valueOf(lpart);
++	else
++		return new BigDecimal(bipart);
++}
++
+ ///// java.lang.Number:
+ 
+ public int intValue(){
+diff --git a/test/clojure/test_clojure/numbers.clj b/test/clojure/test_clojure/numbers.clj
+index b120497..12c5886 100644
+--- a/test/clojure/test_clojure/numbers.clj
++++ b/test/clojure/test_clojure/numbers.clj
+@@ -25,7 +25,7 @@
+ 
+ 
+ (deftest Coerced-BigDecimal
+-  (let [v (bigdec 3)]
++  (doseq [v [(bigdec 3) (bigdec (inc (bigint Long/MAX_VALUE)))]]
+     (are [x] (true? x)
+      (instance? BigDecimal v)
+      (number? v)
+-- 
+1.7.9.2
+

@@ -1,0 +1,28 @@
+From f1a42c119ef12a900a6340ad4dfc5ca2a1cb65f2 Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Mon, 26 Mar 2012 15:13:27 -0700
+Subject: [PATCH] Document that vec can alias Java arrays passed to it.
+
+---
+ src/clj/clojure/core.clj |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 9cf45e6..fb979ce 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -338,7 +338,10 @@
+      (. clojure.lang.LazilyPersistentVector (create (cons a (cons b (cons c (cons d args))))))))
+ 
+ (defn vec
+-  "Creates a new vector containing the contents of coll."
++  "Creates a new vector containing the contents of coll.  If coll is a
++Java array the returned vector aliases it and its contents will change
++if the Java array is modified.  To avoid this, call vec on a copy of
++the array."
+   {:added "1.0"
+    :static true}
+   ([coll]
+-- 
+1.7.9.2
+

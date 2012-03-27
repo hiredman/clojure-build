@@ -1,0 +1,177 @@
+From 7459a805b37c1e24cc024e4bd34410b4e62f714b Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Fri, 24 Feb 2012 15:34:00 -0800
+Subject: [PATCH 1/2] Tighten up existing tests for recur across try boundaries.
+
+Some were syntactically incorrect (e.g. loop [x]) and were detecting
+exceptions thrown that weren't from the compiler.
+
+Tests for code that should compile cleanly was ignoring the value
+returned and wrapping them in another try unnecessarily.  I simply
+changed them to check that the eval of the expression returned the
+only correct value that should ever be produced.
+
+All updated tests pass.
+---
+ test/clojure/test_clojure/compilation.clj |   36 ++++++++++++++++-------------
+ 1 files changed, 20 insertions(+), 16 deletions(-)
+
+diff --git a/test/clojure/test_clojure/compilation.clj b/test/clojure/test_clojure/compilation.clj
+index f8b27de..8fe5631 100644
+--- a/test/clojure/test_clojure/compilation.clj
++++ b/test/clojure/test_clojure/compilation.clj
+@@ -10,6 +10,7 @@
+ 
+ 
+ (ns clojure.test-clojure.compilation
++  (:import (clojure.lang Compiler Compiler$CompilerException))
+   (:use clojure.test
+         [clojure.test-helper :only (should-not-reflect should-print-err-message)]))
+ 
+@@ -54,26 +55,29 @@
+ 
+ (deftest test-no-recur-across-try
+   (testing "don't recur to function from inside try"
+-    (is (thrown? Exception (eval '(fn [x] (try (recur 1)))))))
++    (is (thrown? Compiler$CompilerException
++                 (eval '(fn [x] (try (recur 1)))))))
+   (testing "don't recur to loop from inside try"
+-    (is (thrown? Exception (eval '(loop [x] (try (recur 1)))))))
++    (is (thrown? Compiler$CompilerException
++                 (eval '(loop [x 5]
++                          (try (recur 1)))))))
+   (testing "don't get confused about what the recur is targeting"
+-    (is (thrown? Exception (eval '(loop [x] (try (fn [x]) (recur 1)))))))
+-  (testing "don't allow recur accross binding"
+-    (is (thrown? Exception (eval '(fn [x] (binding [+ *] (recur 1)))))))
++    (is (thrown? Compiler$CompilerException
++                 (eval '(loop [x 5]
++                          (try (fn [x]) (recur 1)))))))
++  (testing "don't allow recur across binding"
++    (is (thrown? Compiler$CompilerException
++                 (eval '(fn [x] (binding [+ *] (recur 1)))))))
+   (testing "allow loop/recur inside try"
+-    (is (try
+-          (eval '(try (loop [x 3] (if (zero? x) x (recur (dec x))))))
+-          (catch Exception _))))
++    (is (= 0 (eval '(try (loop [x 3]
++                           (if (zero? x) x (recur (dec x)))))))))
+   (testing "allow fn/recur inside try"
+-    (is (try
+-          (eval '(try
+-                   ((fn [x]
+-                      (if (zero? x)
+-                        x
+-                        (recur (dec x))))
+-                    3)))
+-          (catch Exception _)))))
++    (is (= 0 (eval '(try
++                      ((fn [x]
++                         (if (zero? x)
++                           x
++                           (recur (dec x))))
++                       3)))))))
+ 
+ ;; disabled until build box can call java from mvn
+ #_(deftest test-numeric-dispatch
+-- 
+1.7.3.4
+
+
+From e04a3121db983bb3890058b2470fc2efff483717 Mon Sep 17 00:00:00 2001
+From: Juha Arpiainen <jarpiain@iki.fi>
+Date: Sun, 31 Oct 2010 19:32:25 +0200
+Subject: [PATCH 2/2] Allow loop/recur nested in catch and finally
+
+---
+ src/jvm/clojure/lang/Compiler.java        |    8 +++-----
+ test/clojure/test_clojure/compilation.clj |   26 ++++++++++++++++++++++++++
+ 2 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index bfc8274..dea9310 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -2092,7 +2092,7 @@ public static class TryExpr implements Expr{
+                                             if(bodyExpr == null)
+                                                 try {
+                                                     Var.pushThreadBindings(RT.map(NO_RECUR, true));
+-                                                    bodyExpr = (new BodyExpr.Parser()).parse(context, RT.seq(body));
++						    bodyExpr = (new BodyExpr.Parser()).parse(C.EXPRESSION, RT.seq(body));
+                                                 } finally {
+                                                     Var.popThreadBindings();
+                                                 }
+@@ -2118,7 +2118,7 @@ public static class TryExpr implements Expr{
+ 							                                (Symbol) (RT.second(f) instanceof Symbol ? RT.second(f)
+ 							                                                                         : null),
+ 							                                null,false);
+-							Expr handler = (new BodyExpr.Parser()).parse(context, RT.next(RT.next(RT.next(f))));
++							Expr handler = (new BodyExpr.Parser()).parse(C.EXPRESSION, RT.next(RT.next(RT.next(f))));
+ 							catches = catches.cons(new CatchClause(c, lb, handler));
+ 							}
+ 						finally
+@@ -2147,7 +2147,7 @@ public static class TryExpr implements Expr{
+                             try 
+                                 {
+                                     Var.pushThreadBindings(RT.map(NO_RECUR, true));
+-                                    bodyExpr = (new BodyExpr.Parser()).parse(context, RT.seq(body));
++				    bodyExpr = (new BodyExpr.Parser()).parse(C.EXPRESSION, RT.seq(body));
+                                 } 
+                             finally
+                                 {
+@@ -6102,8 +6102,6 @@ public static class RecurExpr implements Expr{
+ 			IPersistentVector loopLocals = (IPersistentVector) LOOP_LOCALS.deref();
+ 			if(context != C.RETURN || loopLocals == null)
+ 				throw new UnsupportedOperationException("Can only recur from tail position");
+-			if(IN_CATCH_FINALLY.deref() != null)
+-				throw new UnsupportedOperationException("Cannot recur from catch/finally");
+                         if(NO_RECUR.deref() != null)
+                             throw new UnsupportedOperationException("Cannot recur across try");
+ 			PersistentVector args = PersistentVector.EMPTY;
+diff --git a/test/clojure/test_clojure/compilation.clj b/test/clojure/test_clojure/compilation.clj
+index 8fe5631..7b2754c 100644
+--- a/test/clojure/test_clojure/compilation.clj
++++ b/test/clojure/test_clojure/compilation.clj
+@@ -61,6 +61,18 @@
+     (is (thrown? Compiler$CompilerException
+                  (eval '(loop [x 5]
+                           (try (recur 1)))))))
++  (testing "don't recur to loop from inside of catch inside of try"
++    (is (thrown? Compiler$CompilerException
++                 (eval '(loop [x 5]
++                          (try
++                            (catch Exception e
++                              (recur 1))))))))
++  (testing "don't recur to loop from inside of finally inside of try"
++    (is (thrown? Compiler$CompilerException
++                 (eval '(loop [x 5]
++                          (try
++                            (finally
++                              (recur 1))))))))
+   (testing "don't get confused about what the recur is targeting"
+     (is (thrown? Compiler$CompilerException
+                  (eval '(loop [x 5]
+@@ -71,6 +83,20 @@
+   (testing "allow loop/recur inside try"
+     (is (= 0 (eval '(try (loop [x 3]
+                            (if (zero? x) x (recur (dec x)))))))))
++  (testing "allow loop/recur fully inside catch"
++    (is (= 3 (eval '(try
++                      (throw (Exception.))
++                      (catch Exception e
++                        (loop [x 0]
++                          (if (< x 3) (recur (inc x)) x))))))))
++  (testing "allow loop/recur fully inside finally"
++    (is (= "012" (eval '(with-out-str
++                          (try
++                            :return-val-discarded-because-of-with-out-str
++                            (finally (loop [x 0]
++                                       (when (< x 3)
++                                         (print x)
++                                         (recur (inc x)))))))))))
+   (testing "allow fn/recur inside try"
+     (is (= 0 (eval '(try
+                       ((fn [x]
+-- 
+1.7.3.4
+
