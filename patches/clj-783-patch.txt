@@ -1,0 +1,45 @@
+From 24a8421f657243465c74956db04cf7e4166357dd Mon Sep 17 00:00:00 2001
+From: Jason Wolfe <jason@w01fe.com>
+Date: Tue, 14 Feb 2012 10:49:44 -0800
+Subject: [PATCH] Makes inspect-tree work on java.util.Sets and
+ clojure.lang.Seqable's.
+
+---
+ src/clj/clojure/inspector.clj |   12 ++++++++----
+ 1 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/src/clj/clojure/inspector.clj b/src/clj/clojure/inspector.clj
+index aa708b5..85e79c0 100644
+--- a/src/clj/clojure/inspector.clj
++++ b/src/clj/clojure/inspector.clj
+@@ -22,8 +22,10 @@
+ (defn collection-tag [x]
+   (cond 
+    (instance? java.util.Map$Entry x) :entry
+-   (instance? java.util.Map x) :map
++   (instance? java.util.Map x) :seqable
++   (instance? java.util.Set x) :seqable
+    (sequential? x) :seq
++   (instance? clojure.lang.Seqable x) :seqable
+    :else :atom))
+ 
+ (defmulti is-leaf collection-tag)
+@@ -44,10 +46,12 @@
+ (defmethod get-child-count :entry [e]
+   (count (val e)))
+ 
+-(defmethod is-leaf :map [m]
++(defmethod is-leaf :seqable [parent]
+   false)
+-(defmethod get-child :map [m index]
+-  (nth (seq m) index))
++(defmethod get-child :seqable [parent index]
++  (nth (seq parent) index))
++(defmethod get-child-count :seqable [parent]
++  (count (seq parent)))
+ 
+ (defn tree-model [data]
+   (proxy [TreeModel] []
+-- 
+1.7.7.4
+

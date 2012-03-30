@@ -1,0 +1,109 @@
+From c1d2cef4b19893380a160610c215c385c7c311ab Mon Sep 17 00:00:00 2001
+From: Chris Perkins <chrisperkins99@gmail.com>
+Date: Fri, 17 Feb 2012 01:48:28 -0800
+Subject: [PATCH] Docstrings for generated factory functions.
+
+Also add to the docstrings of deftype and defrecord to indicate that the
+factories will be generated.
+
+Fixed test that expected public vars to have :added metadata - generated
+factory functions ->Vec, ->ArrayChunk, etc. do not have :added.
+---
+ src/clj/clojure/core_deftype.clj        |   16 +++++++++++++---
+ test/clojure/test_clojure/metadata.clj  |    5 ++++-
+ test/clojure/test_clojure/protocols.clj |    6 +++++-
+ 3 files changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/src/clj/clojure/core_deftype.clj b/src/clj/clojure/core_deftype.clj
+index 042c242..0f7ea40 100644
+--- a/src/clj/clojure/core_deftype.clj
++++ b/src/clj/clojure/core_deftype.clj
+@@ -248,8 +248,10 @@
+         [field-args over] (split-at 20 fields)
+         field-count (count fields)
+         arg-count (count field-args)
+-        over-count (count over)]
++        over-count (count over)
++        docstring (str "Positional factory function for class " classname ".")]
+     `(defn ~fn-name
++       ~docstring
+        [~@field-args ~@(if (seq over) '[& overage] [])]
+        ~(if (seq over)
+           `(if (= (count ~'overage) ~over-count)
+@@ -329,7 +331,11 @@
+   map (nil for none), and one taking only the fields (using nil for
+   meta and extension fields). Note that the field names __meta
+   and __extmap are currently reserved and should not be used when
+-  defining your own records."
++  defining your own records.
++
++  Given (defrecord TypeName ...), two factory functions will be
++  defined: ->TypeName, taking positional parameters for the fields,
++  and map->TypeName, taking a map of keywords to field values."
+   {:added "1.2"}
+ 
+   [name [& fields] & opts+specs]
+@@ -347,6 +353,7 @@
+        (import ~classname)
+        ~(build-positional-factory gname classname fields)
+        (defn ~(symbol (str 'map-> gname))
++         ~(str "Factory function for class " classname ", taking a map of keywords to field values.")
+          ([m#] (~(symbol (str classname "/create")) m#)))
+        ~classname)))
+ 
+@@ -418,7 +425,10 @@
+ 
+   One constructor will be defined, taking the designated fields.  Note
+   that the field names __meta and __extmap are currently reserved and
+-  should not be used when defining your own types."
++  should not be used when defining your own types.
++
++  Given (deftype TypeName ...), a factory function called ->TypeName
++  will be defined, taking positional parameters for the fields"
+   {:added "1.2"}
+ 
+   [name [& fields] & opts+specs]
+diff --git a/test/clojure/test_clojure/metadata.clj b/test/clojure/test_clojure/metadata.clj
+index 7719f06..bb6635c 100644
+--- a/test/clojure/test_clojure/metadata.clj
++++ b/test/clojure/test_clojure/metadata.clj
+@@ -38,8 +38,11 @@
+ (def public-vars-with-docstrings
+   (filter (comp :doc meta) public-vars))
+ 
++(def public-vars-with-docstrings-not-generated
++  (remove #(re-find #"^->[A-Z]" (name (.sym %))) public-vars-with-docstrings))
++
+ (deftest public-vars-with-docstrings-have-added
+-  (is (= [] (remove (comp :added meta) public-vars-with-docstrings))))
++  (is (= [] (remove (comp :added meta) public-vars-with-docstrings-not-generated))))
+ 
+ (deftest interaction-of-def-with-metadata
+   (testing "initial def sets metadata"
+diff --git a/test/clojure/test_clojure/protocols.clj b/test/clojure/test_clojure/protocols.clj
+index 71966bf..1e7a199 100644
+--- a/test/clojure/test_clojure/protocols.clj
++++ b/test/clojure/test_clojure/protocols.clj
+@@ -279,7 +279,7 @@
+ (defrecord RecordToTestHugeFactories [a b c d e f g h i j k l m n o p q r s t u v w x y z])
+ 
+ (deftest test-record-factory-fns
+-  (testing "if the definition of a defrecord generates the appropriate factory funcitons"
++  (testing "if the definition of a defrecord generates the appropriate factory functions"
+     (let [r    (RecordToTestFactories. 1 2 3)
+           r-n  (RecordToTestFactories. nil nil nil)
+           huge (RecordToTestHugeFactories. 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)]
+@@ -289,6 +289,10 @@
+       (testing "that a record created with the ctor equals one by the map-> factory fn"
+         (is (= r    (map->RecordToTestFactories {:a 1 :b 2 :c 3})))
+         (is (= r-n  (map->RecordToTestFactories {}))))
++      (testing "that factory functions have docstrings"
++        ;; just test non-nil to avoid overspecifiying what's in the docstring
++        (is (false? (-> ->RecordToTestFactories var meta :doc nil?)))
++        (is (false? (->  map->RecordToTestFactories var meta :doc nil?))))
+       (testing "that a literal record equals one by the positional factory fn"
+         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b 2 :c 3} (->RecordToTestFactories 1 2 3)))
+         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b nil :c nil} (->RecordToTestFactories 1 nil nil)))
+-- 
+1.7.3.4
+

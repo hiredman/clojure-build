@@ -1,14 +1,14 @@
-From 0c04654bdb13e7651c571311b8909b43a7c858b5 Mon Sep 17 00:00:00 2001
+From 463fadd33eb655d3acc12afff15f0f9f7875c03f Mon Sep 17 00:00:00 2001
 From: Tassilo Horn <tassilo@member.fsf.org>
-Date: Mon, 23 Jan 2012 14:52:00 +0100
-Subject: [PATCH 10/10] Add docstring to definterface.
+Date: Thu, 8 Mar 2012 10:50:39 +0100
+Subject: [PATCH] Add docstring and :added metadata to definterface.
 
 ---
  src/clj/clojure/core_deftype.clj |   11 ++++++++++-
  1 files changed, 10 insertions(+), 1 deletions(-)
 
 diff --git a/src/clj/clojure/core_deftype.clj b/src/clj/clojure/core_deftype.clj
-index 72b37cf..1ab5180 100644
+index 042c242..132e3b5 100644
 --- a/src/clj/clojure/core_deftype.clj
 +++ b/src/clj/clojure/core_deftype.clj
 @@ -17,7 +17,16 @@
@@ -30,5 +30,5 @@ index 72b37cf..1ab5180 100644
    (let [tag (fn [x] (or (:tag (meta x)) Object))
          psig (fn [[name [& args]]]
 -- 
-1.7.8.4
+1.7.8.5
 

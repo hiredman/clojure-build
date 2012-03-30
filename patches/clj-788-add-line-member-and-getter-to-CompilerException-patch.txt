@@ -1,0 +1,29 @@
+From aeee5e6181a975793dff864076705f436c4fc7e5 Mon Sep 17 00:00:00 2001
+From: Hugo Duncan <hugo@hugoduncan.org>
+Date: Fri, 24 Feb 2012 11:23:01 -0500
+Subject: [PATCH] Fix CLJ-788 add line member to CompilerException
+
+---
+ src/jvm/clojure/lang/Compiler.java |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/Compiler.java b/src/jvm/clojure/lang/Compiler.java
+index bfc8274..e1c84d5 100644
+--- a/src/jvm/clojure/lang/Compiler.java
++++ b/src/jvm/clojure/lang/Compiler.java
+@@ -6245,9 +6245,12 @@ private static Expr analyze(C context, Object form, String name) {
+ static public class CompilerException extends RuntimeException{
+ 	final public String source;
+ 	
++	final public int line;
++
+ 	public CompilerException(String source, int line, Throwable cause){
+ 		super(errorMsg(source, line, cause.toString()), cause);
+ 		this.source = source;
++		this.line = line;
+ 	}
+ 
+ 	public String toString(){
+-- 
+1.7.3.4
+

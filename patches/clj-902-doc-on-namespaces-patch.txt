@@ -1,0 +1,50 @@
+From de5ef01fbc4fd9784060fbc5e39b91bb308a6cbc Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Thu, 16 Feb 2012 22:40:14 -0800
+Subject: [PATCH] Fix for CLJ-902: doc macro broken for namespaces
+
+ns-resolve fails with exception on namespace symbols, so call find-ns
+first in doc.  Also added a unit test that fails without the fix, and
+succeeds with it.
+---
+ src/clj/clojure/repl.clj           |    4 ++--
+ test/clojure/test_clojure/repl.clj |    8 +++++++-
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/clj/clojure/repl.clj b/src/clj/clojure/repl.clj
+index e6ea66f..6c7cfde 100644
+--- a/src/clj/clojure/repl.clj
++++ b/src/clj/clojure/repl.clj
+@@ -125,8 +125,8 @@ itself (not its value) is returned. The reader macro #'x expands to (var x)."}})
+     (#'print-doc (#'special-doc special-name))
+     (cond
+       (special-doc-map name) `(#'print-doc (#'special-doc '~name))
+-      (resolve name) `(#'print-doc (meta (var ~name)))
+-      (find-ns name) `(#'print-doc (namespace-doc (find-ns '~name))))))
++      (find-ns name) `(#'print-doc (#'namespace-doc (find-ns '~name)))
++      (resolve name) `(#'print-doc (meta (var ~name))))))
+ 
+ ;; ----------------------------------------------------------------------
+ ;; Examine Clojure functions (Vars, really)
+diff --git a/test/clojure/test_clojure/repl.clj b/test/clojure/test_clojure/repl.clj
+index 8921c2c..ccf783a 100644
+--- a/test/clojure/test_clojure/repl.clj
++++ b/test/clojure/test_clojure/repl.clj
+@@ -2,7 +2,13 @@
+   (:use clojure.test
+         clojure.repl
+         [clojure.test-helper :only [platform-newlines]]
+-        clojure.test-clojure.repl.example))
++        clojure.test-clojure.repl.example)
++  (:require [clojure.string :as str]))
++
++(deftest test-doc
++  (testing "with namespaces"
++    (is (= "clojure.pprint"
++           (second (str/split-lines (with-out-str (doc clojure.pprint))))))))
+ 
+ (deftest test-source
+   (is (= "(defn foo [])" (source-fn 'clojure.test-clojure.repl.example/foo)))
+-- 
+1.7.3.4
+

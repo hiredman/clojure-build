@@ -1,0 +1,27 @@
+From 1890e8d9199e976745d93bfb5aa664514dd28a64 Mon Sep 17 00:00:00 2001
+From: David McNeil <dmcneil@revelytix.com>
+Date: Fri, 24 Feb 2012 09:29:46 -0800
+Subject: [PATCH] await-for return value doc fix
+
+---
+ src/clj/clojure/core.clj |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 1dc12c3..c782a59 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -2879,8 +2879,8 @@
+ (defn await-for
+   "Blocks the current thread until all actions dispatched thus
+   far (from this thread or agent) to the agents have occurred, or the
+-  timeout (in milliseconds) has elapsed. Returns nil if returning due
+-  to timeout, non-nil otherwise."
++  timeout (in milliseconds) has elapsed. Returns logical false if
++  returning due to timeout, logical true otherwise."
+   {:added "1.0"
+    :static true}
+   [timeout-ms & agents]
+-- 
+1.7.3.4
+

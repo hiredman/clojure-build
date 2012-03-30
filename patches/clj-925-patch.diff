@@ -1,0 +1,25 @@
+From f35b53516c735a5165f761b6efef4c1ebbca862a Mon Sep 17 00:00:00 2001
+From: Jozef Wagner <jozef.wagner@gmail.com>
+Date: Sun, 5 Feb 2012 14:01:07 +0100
+Subject: [PATCH] fixed rand-nth
+
+---
+ src/clj/clojure/core.clj |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index 8967bee..a5a70eb 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -6339,7 +6339,7 @@
+   {:added "1.2"
+    :static true}
+   [coll]
+-  (nth coll (rand-int (count coll))))
++  (nth coll (rand-int (count coll)) nil))
+ 
+ (defn partition-all
+   "Returns a lazy sequence of lists like partition, but may include
+-- 
+1.7.1
+

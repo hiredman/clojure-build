@@ -1,0 +1,45 @@
+From aacf2f75593ebac899af42f261771d1bd68e388d Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Fri, 24 Feb 2012 23:46:26 -0800
+Subject: [PATCH] Make capitalize work even if first Unicode char is outside
+ BMP
+
+---
+ src/clj/clojure/string.clj           |    6 ++++--
+ test/clojure/test_clojure/string.clj |    3 +++
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/clj/clojure/string.clj b/src/clj/clojure/string.clj
+index 188b518..e5c5cd4 100644
+--- a/src/clj/clojure/string.clj
++++ b/src/clj/clojure/string.clj
+@@ -151,8 +151,10 @@ Design notes for clojure.string:
+   (let [s (.toString s)]
+     (if (< (count s) 2)
+       (.toUpperCase s)
+-      (str (.toUpperCase (subs s 0 1))
+-           (.toLowerCase (subs s 1))))))
++      (let [c (.charAt s 0)
++            n (if (Character/isHighSurrogate c) 2 1)]
++        (str (.toUpperCase (subs s 0 n))
++             (.toLowerCase (subs s n)))))))
+ 
+ (defn ^String upper-case
+   "Converts string to all upper-case."
+diff --git a/test/clojure/test_clojure/string.clj b/test/clojure/test_clojure/string.clj
+index d6f6469..094ee9b 100644
+--- a/test/clojure/test_clojure/string.clj
++++ b/test/clojure/test_clojure/string.clj
+@@ -40,6 +40,9 @@
+   (is (= "" (s/trim-newline ""))))
+ 
+ (deftest t-capitalize
++  (is (= "\ud801\udc00oobar" (s/capitalize "\ud801\udc28OObAR")))
++  ;; Not complete UTF-16 string, but make sure we don't blow up on it
++  (is (= "\ud801" (s/capitalize "\ud801")))
+   (is (= "Foobar" (s/capitalize "foobar")))
+   (is (= "Foobar" (s/capitalize "FOOBAR"))))
+ 
+-- 
+1.7.9
+

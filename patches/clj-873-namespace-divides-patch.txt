@@ -1,0 +1,75 @@
+From ed9858ace4c48645772e5f2b28cf3b8f118c930a Mon Sep 17 00:00:00 2001
+From: Chris Gray <chrismgray@gmail.com>
+Date: Wed, 9 Nov 2011 22:23:15 -0700
+Subject: [PATCH] Allow foo// meaning the function / in namespace foo
+
+Added regression tests
+---
+ src/jvm/clojure/lang/LispReader.java |   10 +---------
+ src/jvm/clojure/lang/Symbol.java     |    2 +-
+ test/clojure/test_clojure/reader.clj |    8 ++++++++
+ 3 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/LispReader.java b/src/jvm/clojure/lang/LispReader.java
+index b0eb8b8..cd4c2ff 100644
+--- a/src/jvm/clojure/lang/LispReader.java
++++ b/src/jvm/clojure/lang/LispReader.java
+@@ -58,7 +58,7 @@ static Symbol DEREF = Symbol.intern("clojure.core", "deref");
+ static IFn[] macros = new IFn[256];
+ static IFn[] dispatchMacros = new IFn[256];
+ //static Pattern symbolPat = Pattern.compile("[:]?([\\D&&[^:/]][^:/]*/)?[\\D&&[^:/]][^:/]*");
+-static Pattern symbolPat = Pattern.compile("[:]?([\\D&&[^/]].*/)?([\\D&&[^/]][^/]*)");
++static Pattern symbolPat = Pattern.compile("[:]?([\\D&&[^/]].*/)?(/|[\\D&&[^/]][^/]*)");
+ //static Pattern varPat = Pattern.compile("([\\D&&[^:\\.]][^:\\.]*):([\\D&&[^:\\.]][^:\\.]*)");
+ //static Pattern intPat = Pattern.compile("[-+]?[0-9]+\\.?");
+ static Pattern intPat =
+@@ -304,14 +304,6 @@ static private Object interpretToken(String s) {
+ 		{
+ 		return RT.F;
+ 		}
+-	else if(s.equals("/"))
+-		{
+-		return SLASH;
+-		}
+-	else if(s.equals("clojure.core//"))
+-		{
+-		return CLOJURE_SLASH;
+-		}
+ 	Object ret = null;
+ 
+ 	ret = matchSymbol(s);
+diff --git a/src/jvm/clojure/lang/Symbol.java b/src/jvm/clojure/lang/Symbol.java
+index d39f53c..f78f1cc 100644
+--- a/src/jvm/clojure/lang/Symbol.java
++++ b/src/jvm/clojure/lang/Symbol.java
+@@ -57,7 +57,7 @@ static public Symbol intern(String ns, String name){
+ }
+ 
+ static public Symbol intern(String nsname){
+-	int i = nsname.lastIndexOf('/');
++	int i = nsname.indexOf('/');
+ 	if(i == -1 || nsname.equals("/"))
+ 		return new Symbol(null, nsname.intern());
+ 	else
+diff --git a/test/clojure/test_clojure/reader.clj b/test/clojure/test_clojure/reader.clj
+index be6d237..14ca247 100644
+--- a/test/clojure/test_clojure/reader.clj
++++ b/test/clojure/test_clojure/reader.clj
+@@ -320,6 +320,14 @@
+ 
+ (deftest t-read)
+ 
++(deftest division
++  (is (= clojure.core// /))
++  (binding [*ns* *ns*]
++    (eval '(do (ns foo
++                 (:require [clojure.core :as bar])
++                 (:use [clojure.test]))
++               (is (= clojure.core// bar//))))))
++
+ (deftest Instants
+   (testing "Instants are read as java.util.Date by default"
+     (is (= java.util.Date (class #inst "2010-11-12T13:14:15.666"))))
+-- 
+1.7.3.4
+

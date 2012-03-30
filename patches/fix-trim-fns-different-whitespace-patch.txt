@@ -1,0 +1,80 @@
+From be7b451d1fb84a10fd8ef1ef180a18d479964cca Mon Sep 17 00:00:00 2001
+From: Andy Fingerhut <andy_fingerhut@alum.wustl.edu>
+Date: Tue, 21 Feb 2012 11:13:29 -0800
+Subject: [PATCH] Change clojure.string/trim so it uses same defn of whitespace as other trim fns
+
+---
+ src/clj/clojure/string.clj           |   26 +++++++++++++++++++-------
+ test/clojure/test_clojure/string.clj |    9 ++++++---
+ 2 files changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/src/clj/clojure/string.clj b/src/clj/clojure/string.clj
+index 188b518..3bc885e 100644
+--- a/src/clj/clojure/string.clj
++++ b/src/clj/clojure/string.clj
+@@ -185,18 +185,30 @@ Design notes for clojure.string:
+   "Removes whitespace from both ends of string."
+   {:added "1.2"}
+   [^CharSequence s]
+-  (.. s toString trim))
++  (let [len (int (.length s))]
++    (loop [rindex (int len)]
++      (if (zero? rindex)
++        ""
++        (if (Character/isWhitespace (.charAt s (dec rindex)))
++          (recur (dec rindex))
++          ;; there is at least one non-whitespace char in the string,
++          ;; so no need to check for lindex reaching len.
++          (loop [lindex (int 0)]
++            (if (Character/isWhitespace (.charAt s lindex))
++              (recur (inc lindex))
++              (.. s (subSequence lindex rindex) toString))))))))
+ 
+ (defn ^String triml
+   "Removes whitespace from the left side of string."
+   {:added "1.2"}
+   [^CharSequence s]
+-  (loop [index (int 0)]
+-    (if (= (.length s) index)
+-      ""
+-      (if (Character/isWhitespace (.charAt s index))
+-        (recur (inc index))
+-        (.. s (subSequence index (.length s)) toString)))))
++  (let [len (int (.length s))]
++    (loop [index (int 0)]
++      (if (= len index)
++        ""
++        (if (Character/isWhitespace (.charAt s index))
++          (recur (inc index))
++          (.. s (subSequence index len) toString))))))
+ 
+ (defn ^String trimr
+   "Removes whitespace from the right side of string."
+diff --git a/test/clojure/test_clojure/string.clj b/test/clojure/test_clojure/string.clj
+index d6f6469..2b001f4 100644
+--- a/test/clojure/test_clojure/string.clj
++++ b/test/clojure/test_clojure/string.clj
+@@ -45,14 +45,17 @@
+ 
+ (deftest t-triml
+   (is (= "foo " (s/triml " foo ")))
+-  (is (= "" (s/triml "   "))))
++  (is (= "" (s/triml "   ")))
++  (is (= "bar" (s/triml "\u2002 \tbar"))))
+ 
+ (deftest t-trimr
+   (is (= " foo" (s/trimr " foo ")))
+-  (is (= "" (s/trimr "   "))))
++  (is (= "" (s/trimr "   ")))
++  (is (= "bar" (s/trimr "bar\t \u2002"))))
+ 
+ (deftest t-trim
+-  (is (= "foo" (s/trim "  foo  \r\n"))))
++  (is (= "foo" (s/trim "  foo  \r\n")))
++  (is (= "bar" (s/trim "\u2000bar\t \u2002"))))
+ 
+ (deftest t-upper-case
+   (is (= "FOOBAR" (s/upper-case "Foobar"))))
+-- 
+1.7.3.4
+

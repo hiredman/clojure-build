@@ -1,0 +1,40 @@
+From 8f44668040645327a695e24442ca886a14dd806c Mon Sep 17 00:00:00 2001
+From: Alan Malloy <alan@malloys.org>
+Date: Mon, 14 Mar 2011 13:42:44 -0700
+Subject: [PATCH] Fix behavior of empty transient maps.
+
+---
+ src/jvm/clojure/lang/PersistentHashMap.java |    4 ++--
+ test/clojure/test_clojure/transients.clj    |    5 ++++-
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/jvm/clojure/lang/PersistentHashMap.java b/src/jvm/clojure/lang/PersistentHashMap.java
+index 928b123..0359bee 100644
+--- a/src/jvm/clojure/lang/PersistentHashMap.java
++++ b/src/jvm/clojure/lang/PersistentHashMap.java
+@@ -279,7 +279,7 @@ static final class TransientHashMap extends ATransientMap {
+ 			else
+ 				return notFound;
+ 		if (root == null)
+-			return null;
++			return notFound;
+ 		return root.find(0, hash(key), key, notFound);
+ 	}
+ 
+diff --git a/test/clojure/test_clojure/transients.clj b/test/clojure/test_clojure/transients.clj
+index 1545c10..aa0b871 100644
+--- a/test/clojure/test_clojure/transients.clj
++++ b/test/clojure/test_clojure/transients.clj
+@@ -23,4 +23,7 @@
+     (is (= [0 {}] (let [ks (concat (range 7) [(hash-obj 42) (hash-obj 42)])
+                         m (zipmap ks ks)
+                         dm (persistent! (reduce dissoc! (transient m) (keys m)))]
+-                    [(count dm) dm])))))
+\ No newline at end of file
++                    [(count dm) dm])))))
++
++(deftest empty-transient
++  (is (= false (.contains (transient #{}) :bogus-key))))
+-- 
+1.7.3.4
+

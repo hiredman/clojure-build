@@ -1,0 +1,278 @@
+From a12ec685b6b3228a83932bcd932e85374df48b0b Mon Sep 17 00:00:00 2001
+From: Alex Redington <alex.redington@thinkrelevance.com>
+Date: Fri, 17 Feb 2012 15:48:50 -0800
+Subject: [PATCH] Refactor of some of the clojure .java code to fix CLJ-700.
+
+---
+ src/jvm/clojure/lang/Associative.java           |    5 +----
+ src/jvm/clojure/lang/IAssociative.java          |   21 +++++++++++++++++++++
+ src/jvm/clojure/lang/IPersistentSet.java        |    6 ++----
+ src/jvm/clojure/lang/ISet.java                  |   17 +++++++++++++++++
+ src/jvm/clojure/lang/ITransientAssociative.java |    3 ++-
+ src/jvm/clojure/lang/ITransientSet.java         |    4 +---
+ src/jvm/clojure/lang/PersistentArrayMap.java    |   11 +++++++++++
+ src/jvm/clojure/lang/PersistentHashMap.java     |   14 +++++++++++++-
+ src/jvm/clojure/lang/PersistentVector.java      |   17 +++++++++++++++++
+ src/jvm/clojure/lang/RT.java                    |   16 ++++++++--------
+ test/clojure/test_clojure/transients.clj        |   15 ++++++++++++++-
+ 11 files changed, 107 insertions(+), 22 deletions(-)
+ create mode 100644 src/jvm/clojure/lang/IAssociative.java
+ create mode 100644 src/jvm/clojure/lang/ISet.java
+
+diff --git a/src/jvm/clojure/lang/Associative.java b/src/jvm/clojure/lang/Associative.java
+index a239994..35474f5 100644
+--- a/src/jvm/clojure/lang/Associative.java
++++ b/src/jvm/clojure/lang/Associative.java
+@@ -9,10 +9,7 @@ package clojure.lang;
+  * the terms of this license.
+  * You must not remove this notice, or any other, from this software.
+  */
+-public interface Associative extends IPersistentCollection, ILookup{
+-boolean containsKey(Object key);
+-
+-IMapEntry entryAt(Object key);
++public interface Associative extends IPersistentCollection, IAssociative{
+ 
+ Associative assoc(Object key, Object val);
+ 
+diff --git a/src/jvm/clojure/lang/IAssociative.java b/src/jvm/clojure/lang/IAssociative.java
+new file mode 100644
+index 0000000..b65c278
+--- /dev/null
++++ b/src/jvm/clojure/lang/IAssociative.java
+@@ -0,0 +1,21 @@
++package clojure.lang;
++
++/**
++ * Copyright (c) Rich Hickey. All rights reserved.
++ * The use and distribution terms for this software are covered by the
++ * Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
++ * which can be found in the file epl-v10.html at the root of this distribution.
++ * By using this software in any fashion, you are agreeing to be bound by
++ * the terms of this license.
++ * You must not remove this notice, or any other, from this software.
++ */
++
++public interface IAssociative extends ILookup {
++
++	boolean containsKey(Object key);
++
++	IMapEntry entryAt(Object key);
++
++	IAssociative assoc(Object key, Object val);
++
++}
+diff --git a/src/jvm/clojure/lang/IPersistentSet.java b/src/jvm/clojure/lang/IPersistentSet.java
+index 144d15a..3fce1ae 100644
+--- a/src/jvm/clojure/lang/IPersistentSet.java
++++ b/src/jvm/clojure/lang/IPersistentSet.java
+@@ -12,8 +12,6 @@
+ 
+ package clojure.lang;
+ 
+-public interface IPersistentSet extends IPersistentCollection, Counted{
+-	public IPersistentSet disjoin(Object key) ;
+-	public boolean contains(Object key);
+-	public Object get(Object key);
++public interface IPersistentSet extends IPersistentCollection, ISet, Counted{
++  public IPersistentSet disjoin(Object key) ;
+ }
+diff --git a/src/jvm/clojure/lang/ISet.java b/src/jvm/clojure/lang/ISet.java
+new file mode 100644
+index 0000000..9a8a8ce
+--- /dev/null
++++ b/src/jvm/clojure/lang/ISet.java
+@@ -0,0 +1,17 @@
++package clojure.lang;
++
++/**
++ * Copyright (c) Rich Hickey. All rights reserved.
++ * The use and distribution terms for this software are covered by the
++ * Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
++ * which can be found in the file epl-v10.html at the root of this distribution.
++ * By using this software in any fashion, you are agreeing to be bound by
++ * the terms of this license.
++ * You must not remove this notice, or any other, from this software.
++ */
++
++public interface ISet extends Counted {
++	public boolean contains(Object key);
++	public Object get(Object key);
++	public ISet disjoin(Object key);
++}
+diff --git a/src/jvm/clojure/lang/ITransientAssociative.java b/src/jvm/clojure/lang/ITransientAssociative.java
+index a4d2655..b7b68bf 100644
+--- a/src/jvm/clojure/lang/ITransientAssociative.java
++++ b/src/jvm/clojure/lang/ITransientAssociative.java
+@@ -12,7 +12,8 @@
+ 
+ package clojure.lang;
+ 
+-public interface ITransientAssociative extends ITransientCollection, ILookup{
++public interface ITransientAssociative extends ITransientCollection, IAssociative {
+ 
+ ITransientAssociative assoc(Object key, Object val);
++
+ }
+diff --git a/src/jvm/clojure/lang/ITransientSet.java b/src/jvm/clojure/lang/ITransientSet.java
+index 7d1ec51..348dd97 100644
+--- a/src/jvm/clojure/lang/ITransientSet.java
++++ b/src/jvm/clojure/lang/ITransientSet.java
+@@ -12,8 +12,6 @@
+ 
+ package clojure.lang;
+ 
+-public interface ITransientSet extends ITransientCollection, Counted{
++public interface ITransientSet extends ITransientCollection, ISet, Counted{
+ 	public ITransientSet disjoin(Object key) ;
+-	public boolean contains(Object key);
+-	public Object get(Object key);
+ }
+diff --git a/src/jvm/clojure/lang/PersistentArrayMap.java b/src/jvm/clojure/lang/PersistentArrayMap.java
+index 2446ed6..0c28da6 100644
+--- a/src/jvm/clojure/lang/PersistentArrayMap.java
++++ b/src/jvm/clojure/lang/PersistentArrayMap.java
+@@ -295,6 +295,17 @@ static final class TransientArrayMap extends ATransientMap {
+ 		this.len = array.length;
+ 	}
+ 	
++	public boolean containsKey(Object key){
++		return indexOf(key) >= 0;
++	}
++
++	public IMapEntry entryAt(Object key){
++		int i = indexOf(key);
++		if(i >= 0)
++			return new MapEntry(array[i],array[i+1]);
++		return null;
++	}
++
+ 	private int indexOf(Object key){
+ 		for(int i = 0; i < len; i += 2)
+ 			{
+diff --git a/src/jvm/clojure/lang/PersistentHashMap.java b/src/jvm/clojure/lang/PersistentHashMap.java
+index 928b123..621f618 100644
+--- a/src/jvm/clojure/lang/PersistentHashMap.java
++++ b/src/jvm/clojure/lang/PersistentHashMap.java
+@@ -229,6 +229,18 @@ static final class TransientHashMap extends ATransientMap {
+ 		this.nullValue = nullValue;
+ 	}
+ 
++	public boolean containsKey(Object key){
++		if(key == null)
++			return hasNull;
++		return (root != null) ? root.find(0, Util.hash(key), key, NOT_FOUND) != NOT_FOUND : false;
++	}
++
++	public IMapEntry entryAt(Object key){
++		if(key == null)
++			return hasNull ? new MapEntry(null, nullValue) : null;
++		return (root != null) ? root.find(0, Util.hash(key), key) : null;
++	}
++
+ 	ITransientMap doAssoc(Object key, Object val) {
+ 		if (key == null) {
+ 			if (this.nullValue != val)
+@@ -1057,4 +1069,4 @@ static final class NodeSeq extends ASeq {
+ 	}
+ }
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/src/jvm/clojure/lang/PersistentVector.java b/src/jvm/clojure/lang/PersistentVector.java
+index f8534ba..804b54e 100644
+--- a/src/jvm/clojure/lang/PersistentVector.java
++++ b/src/jvm/clojure/lang/PersistentVector.java
+@@ -399,6 +399,23 @@ static final class TransientVector extends AFn implements ITransientVector, Coun
+ 		this(v.cnt, v.shift, editableRoot(v.root), editableTail(v.tail));
+ 	}
+ 
++	public boolean containsKey(Object key){
++		if(!(Util.isInteger(key)))
++			return false;
++		int i = ((Number) key).intValue();
++		return i >= 0 && i < count();
++	}
++
++	public IMapEntry entryAt(Object key){
++		if(Util.isInteger(key))
++			{
++			int i = ((Number) key).intValue();
++			if(i >= 0 && i < count())
++				return new MapEntry(key, nth(i));
++			}
++		return null;
++	}
++
+ 	public int count(){
+ 		ensureEditable();
+ 		return cnt;
+diff --git a/src/jvm/clojure/lang/RT.java b/src/jvm/clojure/lang/RT.java
+index 0c9cb55..f317b5e 100644
+--- a/src/jvm/clojure/lang/RT.java
++++ b/src/jvm/clojure/lang/RT.java
+@@ -642,8 +642,8 @@ static Object getFrom(Object coll, Object key){
+ 		Map m = (Map) coll;
+ 		return m.get(key);
+ 	}
+-	else if(coll instanceof IPersistentSet) {
+-		IPersistentSet set = (IPersistentSet) coll;
++	else if(coll instanceof ISet) {
++		ISet set = (ISet) coll;
+ 		return set.get(key);
+ 	}
+ 	else if(key instanceof Number && (coll instanceof String || coll.getClass().isArray())) {
+@@ -671,8 +671,8 @@ static Object getFrom(Object coll, Object key, Object notFound){
+ 			return m.get(key);
+ 		return notFound;
+ 	}
+-	else if(coll instanceof IPersistentSet) {
+-		IPersistentSet set = (IPersistentSet) coll;
++	else if(coll instanceof ISet) {
++		ISet set = (ISet) coll;
+ 		if(set.contains(key))
+ 			return set.get(key);
+ 		return notFound;
+@@ -694,10 +694,10 @@ static public Associative assoc(Object coll, Object key, Object val){
+ static public Object contains(Object coll, Object key){
+ 	if(coll == null)
+ 		return F;
+-	else if(coll instanceof Associative)
+-		return ((Associative) coll).containsKey(key) ? T : F;
+-	else if(coll instanceof IPersistentSet)
+-		return ((IPersistentSet) coll).contains(key) ? T : F;
++	else if(coll instanceof IAssociative)
++		return ((IAssociative) coll).containsKey(key) ? T : F;
++	else if(coll instanceof ISet)
++		return ((ISet) coll).contains(key) ? T : F;
+ 	else if(coll instanceof Map) {
+ 		Map m = (Map) coll;
+ 		return m.containsKey(key) ? T : F;
+diff --git a/test/clojure/test_clojure/transients.clj b/test/clojure/test_clojure/transients.clj
+index 1545c10..c7c2e56 100644
+--- a/test/clojure/test_clojure/transients.clj
++++ b/test/clojure/test_clojure/transients.clj
+@@ -23,4 +23,17 @@
+     (is (= [0 {}] (let [ks (concat (range 7) [(hash-obj 42) (hash-obj 42)])
+                         m (zipmap ks ks)
+                         dm (persistent! (reduce dissoc! (transient m) (keys m)))]
+-                    [(count dm) dm])))))
+\ No newline at end of file
++                    [(count dm) dm])))))
++
++(deftest contains-on-transients
++  (are [x y] (contains? (transient x) y)
++    {:x "y"} :x
++    (hash-map :x "y") :x
++    [1 2 3] 0
++    #{:x} :x))
++
++(deftest keyword-access-on-transient-sets
++  (is (= (:x (transient #{:x})) :x)))
++
++(deftest get-access-on-transient-sets
++  (is (= (get (transient #{:x}) :x) :x)))
+-- 
+1.7.3.4
+

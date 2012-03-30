@@ -1,0 +1,231 @@
+From 4c9e29871eb4803adc77a5a6195af912f1697c4b Mon Sep 17 00:00:00 2001
+From: Ambrose Bonnaire-Sergeant <abonnairesergeant@gmail.com>
+Date: Tue, 6 Sep 2011 01:49:58 +0800
+Subject: [PATCH] Better error messages for syntax errors w/ defn and fn [CLJ-157]
+
+Breaking changes:
+
+(fn)
+(fn a)
+
+Both of these now throw exceptions instead of silently returning
+an undefined (according to the docstring of fn) function.
+
+See tests in clojure.test-clojure.def and clojure.test-clojure.fn
+for specific new error messages.
+
+While defn uses fn, many changes had to be repeated in defn because
+defn analyses the arglists for metadata before passing to fn.
+---
+ src/clj/clojure/core.clj          |   48 ++++++++++++++++++++++++++++++--
+ src/script/run_tests.clj          |    1 +
+ test/clojure/test_clojure/def.clj |   43 +++++++++++++++++++++++++++--
+ test/clojure/test_clojure/fn.clj  |   55 +++++++++++++++++++++++++++++++++++++
+ 4 files changed, 141 insertions(+), 6 deletions(-)
+ create mode 100644 test/clojure/test_clojure/fn.clj
+
+diff --git a/src/clj/clojure/core.clj b/src/clj/clojure/core.clj
+index e1aa2df..eb76605 100644
+--- a/src/clj/clojure/core.clj
++++ b/src/clj/clojure/core.clj
+@@ -270,6 +270,10 @@
+                 [name doc-string? attr-map? ([params*] prepost-map? body)+ attr-map?])
+    :added "1.0"}
+  defn (fn defn [&form &env name & fdecl]
++        ;; Note: Cannot delegate this check to def because of the call to (with-meta name ..)
++        (if (instance? clojure.lang.Symbol name)
++          nil
++          (throw (IllegalArgumentException. "First argument to defn must be a symbol")))
+         (let [m (if (string? (first fdecl))
+                   {:doc (first fdecl)}
+                   {})
+@@ -3998,9 +4002,31 @@
+   [& sigs]
+     (let [name (if (symbol? (first sigs)) (first sigs) nil)
+           sigs (if name (next sigs) sigs)
+-          sigs (if (vector? (first sigs)) (list sigs) sigs)
++          sigs (if (vector? (first sigs)) 
++                 (list sigs) 
++                 (if (seq? (first sigs))
++                   sigs
++                   ;; Assume single arity syntax
++                   (throw (IllegalArgumentException. 
++                            (if (seq sigs)
++                              (str "Parameter declaration " 
++                                   (first sigs)
++                                   " should be a vector")
++                              (str "Parameter declaration missing"))))))
+           psig (fn* [sig]
++                 ;; Ensure correct type before destructuring sig
++                 (when (not (seq? sig))
++                   (throw (IllegalArgumentException.
++                            (str "Invalid signature " sig
++                                 " should be a list"))))
+                  (let [[params & body] sig
++                       _ (when (not (vector? params))
++                           (throw (IllegalArgumentException. 
++                                    (if (seq? (first sigs))
++                                      (str "Parameter declaration " params
++                                           " should be a vector")
++                                      (str "Invalid signature " sig
++                                           " should be a list")))))
+                        conds (when (and (next body) (map? (first body))) 
+                                            (first body))
+                        body (if conds (next body) body)
+@@ -6524,8 +6550,24 @@
+ (defn- ^{:dynamic true} assert-valid-fdecl
+   "A good fdecl looks like (([a] ...) ([a b] ...)) near the end of defn."
+   [fdecl]
+-  (if-let [bad-args (seq (remove #(vector? %) (map first fdecl)))]
+-    (throw (IllegalArgumentException. (str "Parameter declaration " (first bad-args) " should be a vector")))))
++  (when (empty? fdecl) (throw (IllegalArgumentException.
++                                "Parameter declaration missing")))
++  (let [argdecls (map 
++                   #(if (seq? %)
++                      (first %)
++                      (throw (IllegalArgumentException. 
++                        (if (seq? (first fdecl))
++                          (str "Invalid signature "
++                               %
++                               " should be a list")
++                          (str "Parameter declaration "
++                               %
++                               " should be a vector")))))
++                   fdecl)
++        bad-args (seq (remove #(vector? %) argdecls))]
++    (when bad-args
++      (throw (IllegalArgumentException. (str "Parameter declaration " (first bad-args) 
++                                             " should be a vector"))))))
+ 
+ (defn with-redefs-fn
+   "Temporarily redefines Vars during a call to func.  Each val of
+diff --git a/src/script/run_tests.clj b/src/script/run_tests.clj
+index 1aa8b99..120261c 100755
+--- a/src/script/run_tests.clj
++++ b/src/script/run_tests.clj
+@@ -15,6 +15,7 @@ clojure.test-clojure.data-structures
+ clojure.test-clojure.def
+ clojure.test-clojure.errors
+ clojure.test-clojure.evaluation
++clojure.test-clojure.fn
+ clojure.test-clojure.for
+ clojure.test-clojure.genclass.examples
+ clojure.test-clojure.genclass
+diff --git a/test/clojure/test_clojure/def.clj b/test/clojure/test_clojure/def.clj
+index b0712db..99b3d5d 100644
+--- a/test/clojure/test_clojure/def.clj
++++ b/test/clojure/test_clojure/def.clj
+@@ -11,9 +11,46 @@
+         clojure.test-clojure.protocols))
+ 
+ (deftest defn-error-messages
+-  (testing "bad arglist forms"
+-    (is (fails-with-cause? IllegalArgumentException '#"Parameter declaration arg1 should be a vector"
+-          (eval-in-temp-ns (defn foo (arg1 arg2)))))))
++  (testing "multiarity syntax invalid parameter declaration"
++    (is (fails-with-cause? 
++          IllegalArgumentException 
++          #"Parameter declaration arg1 should be a vector"
++          (eval-in-temp-ns (defn foo (arg1 arg2))))))
++
++  (testing "multiarity syntax invalid signature"
++    (is (fails-with-cause? 
++          IllegalArgumentException 
++          #"Invalid signature \[a b\] should be a list"
++          (eval-in-temp-ns (defn foo 
++                             ([a] 1)
++                             [a b])))))
++
++  (testing "assume single arity syntax"
++    (is (fails-with-cause? 
++          IllegalArgumentException 
++          #"Parameter declaration a should be a vector"
++          (eval-in-temp-ns (defn foo a)))))
++
++  (testing "bad name"
++    (is (fails-with-cause? 
++          IllegalArgumentException 
++          #"First argument to defn must be a symbol"
++          (eval-in-temp-ns (defn "bad docstring" testname [arg1 arg2])))))
++         
++  (testing "missing parameter/signature"
++    (is (fails-with-cause? 
++          IllegalArgumentException 
++          #"Parameter declaration missing"
++          (eval-in-temp-ns (defn testname)))))
++
++  (testing "allow trailing map"
++    (is (eval-in-temp-ns (defn a "asdf" ([a] 1) {:a :b}))))
++
++  (testing "don't allow interleaved map"
++    (is (fails-with-cause? 
++          IllegalArgumentException 
++          #"Invalid signature \{:a :b\} should be a list"
++          (eval-in-temp-ns (defn a "asdf" ([a] 1) {:a :b} ([] 1)))))))
+ 
+ (deftest dynamic-redefinition
+   ;; too many contextual things for this kind of caching to work...
+diff --git a/test/clojure/test_clojure/fn.clj b/test/clojure/test_clojure/fn.clj
+new file mode 100644
+index 0000000..c85b155
+--- /dev/null
++++ b/test/clojure/test_clojure/fn.clj
+@@ -0,0 +1,55 @@
++;   Copyright (c) Rich Hickey. All rights reserved.
++;   The use and distribution terms for this software are covered by the
++;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
++;   which can be found in the file epl-v10.html at the root of this distribution.
++;   By using this software in any fashion, you are agreeing to be bound by
++;   the terms of this license.
++;   You must not remove this notice, or any other, from this software.
++
++; Author: Ambrose Bonnaire-Sergeant
++
++(ns clojure.test-clojure.fn
++  (:use clojure.test))
++
++(deftest fn-error-checking
++  (testing "bad arglist"
++    (is (fails-with-cause? java.lang.IllegalArgumentException 
++          #"Parameter declaration a should be a vector"
++          (eval '(fn "a" a)))))
++
++  (testing "treat first param as args"
++    (is (fails-with-cause? java.lang.IllegalArgumentException 
++          #"Parameter declaration a should be a vector"
++          (eval '(fn "a" [])))))
++
++  (testing "looks like listy signature, but malformed declaration"
++    (is (fails-with-cause? java.lang.IllegalArgumentException
++          #"Parameter declaration 1 should be a vector"
++          (eval '(fn (1))))))
++
++  (testing "checks each signature"
++    (is (fails-with-cause? java.lang.IllegalArgumentException
++          #"Parameter declaration a should be a vector"
++          (eval '(fn
++                   ([a] 1)
++                   ("a" 2))))))
++
++  (testing "correct name but invalid args"
++    (is (fails-with-cause? java.lang.IllegalArgumentException
++          #"Parameter declaration a should be a vector"
++          (eval '(fn a "a")))))
++
++  (testing "first sig looks multiarity, rest of sigs should be lists"
++    (is (fails-with-cause? java.lang.IllegalArgumentException 
++          #"Invalid signature \[a b\] should be a list"
++          (eval '(fn a
++                   ([a] 1)
++                   [a b])))))
++  
++  (testing "missing parameter declaration"
++    (is (fails-with-cause? java.lang.IllegalArgumentException 
++          #"Parameter declaration missing"
++          (eval '(fn a))))
++    (is (fails-with-cause? java.lang.IllegalArgumentException 
++          #"Parameter declaration missing"
++          (eval '(fn))))))
+-- 
+1.7.9.2
+
